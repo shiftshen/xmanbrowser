@@ -11,6 +11,8 @@ geo that follows the proxy exit IP. They return an object usable as
 """
 from __future__ import annotations
 
+import os
+import sys
 from typing import Any, Dict, Optional
 
 from .profile import Profile
@@ -55,7 +57,27 @@ def _launch_camoufox(profile: Profile, *, headless: bool, **kw):
 
 # ----------------------------- Chromium (patchright) -----------------------------
 
+def _set_browsers_path() -> None:
+    """Point patchright at the shared user browser cache.
+
+    A PyInstaller-frozen build otherwise looks for browsers inside its temp
+    extraction dir (empty); the standard ms-playwright user cache is where dev
+    installs land and where we download to on first run.
+    """
+    if os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        return
+    home = os.path.expanduser("~")
+    if sys.platform == "darwin":
+        path = os.path.join(home, "Library", "Caches", "ms-playwright")
+    elif os.name == "nt":
+        path = os.path.join(os.environ.get("LOCALAPPDATA", home), "ms-playwright")
+    else:
+        path = os.path.join(home, ".cache", "ms-playwright")
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = path
+
+
 def _ensure_chromium() -> None:
+    _set_browsers_path()
     """Download the patchright Chromium browser on first use if it's missing."""
     try:
         from patchright.sync_api import sync_playwright
