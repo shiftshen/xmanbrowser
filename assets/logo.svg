@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="900" y2="980" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5B8DEF"/>
+      <stop offset="0.55" stop-color="#4F6BFF"/>
+      <stop offset="1" stop-color="#8A5CFF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.22" r="0.9">
+      <stop stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="xg" x1="320" y1="300" x2="710" y2="740" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#E6EEFF"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#10204a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- rounded app-icon background -->
+  <rect x="80" y="80" width="864" height="864" rx="208" fill="url(#bg)"/>
+  <rect x="80" y="80" width="864" height="864" rx="208" fill="url(#glow)"/>
+
+  <!-- browser orbit ring (web hint) -->
+  <g stroke="#ffffff" stroke-opacity="0.30" fill="none">
+    <circle cx="512" cy="512" r="300" stroke-width="14"/>
+    <ellipse cx="512" cy="512" rx="300" ry="120" stroke-width="11"/>
+  </g>
+
+  <!-- the X -->
+  <g filter="url(#sh)" stroke="url(#xg)" stroke-width="74" stroke-linecap="round">
+    <line x1="376" y1="376" x2="648" y2="648"/>
+    <line x1="648" y1="376" x2="376" y2="648"/>
+  </g>
+</svg>

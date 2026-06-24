@@ -1,6 +1,8 @@
-# XMan — open-source macOS fingerprint browser
+# Xbrowser — open-source fingerprint browser
 
-XMan is a **free, open-source (MIT), local-first** fingerprint browser for macOS.
+<sub>powered by **xmanx**</sub>
+
+Xbrowser is a **free, open-source (MIT), local-first** fingerprint browser for macOS & Windows.
 It manages multiple isolated browser *profiles* — each with its own internally
 consistent fingerprint, its own proxy, and its own cookie/storage isolation —
 built on top of [Camoufox](https://github.com/daijro/camoufox) (an open-source

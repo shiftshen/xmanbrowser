@@ -47,14 +47,13 @@ code { background: var(--panel-2); padding: 1px 6px; border-radius: 5px; font-si
   padding: 16px 12px;
   gap: 4px;
 }
-.brand { display: flex; align-items: center; gap: 9px; padding: 6px 10px 16px; }
-.brand .mark {
-  width: 26px; height: 26px; border-radius: 7px;
-  background: linear-gradient(135deg, var(--accent), #7b5cff);
-  display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 14px;
-}
-.brand .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
-.brand .name span { color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
+.brand .mark { border-radius: 9px; flex-shrink: 0; filter: drop-shadow(0 4px 10px rgba(79,107,255,.35)); }
+.brand .wordmark { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+.brand .name { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+.brand .name span { color: var(--accent); font-weight: 600; }
+.brand .tag { font-size: 10.5px; color: var(--faint); letter-spacing: .2px; }
+.brand .tag b { color: var(--muted); font-weight: 600; }
 
 .nav-label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--faint); padding: 12px 12px 6px; }
 .nav-item {
