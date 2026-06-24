@@ -58,6 +58,7 @@ export interface PoolProxy {
   fail_count: number;
   success_count: number;
   source: string | null;
+  group: string;
 }
 
 export interface Group {
@@ -185,11 +186,11 @@ export const api = {
 
   // proxy pool
   proxies: () => xfetch(`${BASE}/proxies`).then((r) => j<PoolProxy[]>(r)),
-  addProxy: (raw: string, label?: string, note = "") =>
+  addProxy: (raw: string, label?: string, note = "", group = "") =>
     xfetch(`${BASE}/proxies`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ raw, label, note }),
+      body: JSON.stringify({ raw, label, note, group }),
     }).then((r) => j<PoolProxy>(r)),
   addProxiesBulk: (text: string) =>
     xfetch(`${BASE}/proxies/bulk`, {
@@ -197,7 +198,7 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
     }).then((r) => j<{ added: PoolProxy[]; errors: { line: string; error: string }[] }>(r)),
-  updateProxy: (id: string, body: Partial<Pick<PoolProxy, "label" | "raw" | "note">>) =>
+  updateProxy: (id: string, body: Partial<Pick<PoolProxy, "label" | "raw" | "note" | "group">>) =>
     xfetch(`${BASE}/proxies/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },

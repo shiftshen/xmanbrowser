@@ -385,7 +385,10 @@ function ProxiesView(props: {
                     <span className="knob" />
                   </span>
                 </td>
-                <td className="lbl">{p.label}{p.note && <div className="faint" style={{ fontWeight: 400, fontSize: 11 }}>{p.note}</div>}</td>
+                <td className="lbl">
+                  {p.label}{p.group && <span className="chip grp" style={{ marginLeft: 6 }}>{p.group}</span>}
+                  {p.note && <div className="faint" style={{ fontWeight: 400, fontSize: 11 }}>{p.note}</div>}
+                </td>
                 <td className="raw">{mask(p.raw)}</td>
                 <td>
                   {p.last_ok === true ? (
@@ -597,6 +600,7 @@ function ProxyModal(props: {
   const [label, setLabel] = useState(p?.label ?? "");
   const [raw, setRaw] = useState(p?.raw ?? "");
   const [note, setNote] = useState(p?.note ?? "");
+  const [group, setGroup] = useState(p?.group ?? "");
   const [geo, setGeo] = useState<GeoInfo | null>(null);
   const [geoErr, setGeoErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -611,8 +615,8 @@ function ProxyModal(props: {
   const save = async () => {
     setBusy(true);
     try {
-      if (isNew) { await api.addProxy(raw.trim(), label.trim() || undefined, note); props.onSaved("proxy added"); }
-      else { await api.updateProxy(p!.id, { label: label.trim(), raw: raw.trim(), note }); props.onSaved("proxy saved"); }
+      if (isNew) { await api.addProxy(raw.trim(), label.trim() || undefined, note, group.trim()); props.onSaved("proxy added"); }
+      else { await api.updateProxy(p!.id, { label: label.trim(), raw: raw.trim(), note, group: group.trim() }); props.onSaved("proxy saved"); }
     } catch (e: any) { props.onError(e.message); }
     finally { setBusy(false); }
   };
@@ -635,9 +639,15 @@ function ProxyModal(props: {
           {geo && <div className="geo ok">✓ exit <b>{geo.ip}</b> — {geo.city}, {geo.country} ({geo.country_code}) · {geo.timezone}</div>}
           {geoErr && <div className="geo bad">✗ {geoErr}</div>}
         </div>
-        <div className="field">
-          <label>Note</label>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" />
+        <div className="inline">
+          <div className="field" style={{ flex: 1 }}>
+            <label>Group <span className="hint">· optional tag</span></label>
+            <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="e.g. us, residential" />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Note</label>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" />
+          </div>
         </div>
         <div className="foot">
           <button onClick={props.onClose}>Cancel</button>

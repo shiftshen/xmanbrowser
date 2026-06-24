@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     fail_count   INTEGER NOT NULL DEFAULT 0,
     success_count INTEGER NOT NULL DEFAULT 0,
     source       TEXT,                  -- provider label this proxy came from (NULL = manual)
+    grp          TEXT NOT NULL DEFAULT '',
     created_at   REAL NOT NULL
 );
 
@@ -73,6 +74,7 @@ _PROXY_MIGRATIONS = {
     "fail_count": "ALTER TABLE proxies ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0",
     "success_count": "ALTER TABLE proxies ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0",
     "source": "ALTER TABLE proxies ADD COLUMN source TEXT",
+    "grp": "ALTER TABLE proxies ADD COLUMN grp TEXT NOT NULL DEFAULT ''",
 }
 
 
@@ -339,13 +341,26 @@ def _proxy_row(r: sqlite3.Row) -> dict:
         "fail_count": r["fail_count"] if "fail_count" in keys else 0,
         "success_count": r["success_count"] if "success_count" in keys else 0,
         "source": r["source"] if "source" in keys else None,
+        "group": r["grp"] if "grp" in keys else "",
     }
 
 
-def list_proxies() -> list[dict]:
+def list_proxies(group: Optional[str] = None) -> list[dict]:
     with _conn() as c:
-        rows = c.execute("SELECT * FROM proxies ORDER BY created_at").fetchall()
+        if group:
+            rows = c.execute("SELECT * FROM proxies WHERE grp=? ORDER BY created_at", (group,)).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM proxies ORDER BY created_at").fetchall()
     return [_proxy_row(r) for r in rows]
+
+
+def proxy_groups() -> list[dict]:
+    """Distinct non-empty proxy groups with counts."""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT grp, COUNT(*) c FROM proxies WHERE grp != '' GROUP BY grp ORDER BY grp"
+        ).fetchall()
+    return [{"name": r["grp"], "count": r["c"]} for r in rows]
 
 
 def get_proxy(pid: str) -> dict:
@@ -357,14 +372,14 @@ def get_proxy(pid: str) -> dict:
 
 
 def add_proxy(raw: str, *, label: Optional[str] = None, note: str = "",
-              source: Optional[str] = None) -> dict:
+              source: Optional[str] = None, group: str = "") -> dict:
     Proxy.parse(raw)  # validate
     label = label or _next_proxy_label()
     pid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
-            "INSERT INTO proxies (id,label,raw,note,source,created_at) VALUES (?,?,?,?,?,?)",
-            (pid, label, raw, note, source, time.time()),
+            "INSERT INTO proxies (id,label,raw,note,source,grp,created_at) VALUES (?,?,?,?,?,?,?)",
+            (pid, label, raw, note, source, group, time.time()),
         )
     return get_proxy(pid)
 
@@ -403,7 +418,7 @@ def _next_proxy_label(prefix: str = "proxy") -> str:
     return f"{prefix}{nxt:02d}"
 
 
-def update_proxy(pid: str, *, label=..., raw=..., note=...) -> dict:
+def update_proxy(pid: str, *, label=..., raw=..., note=..., group=...) -> dict:
     p = get_proxy(pid)
     fields, args = [], []
     if label is not ...:
@@ -413,6 +428,8 @@ def update_proxy(pid: str, *, label=..., raw=..., note=...) -> dict:
         fields.append("raw=?"); args.append(raw)
     if note is not ...:
         fields.append("note=?"); args.append(note)
+    if group is not ...:
+        fields.append("grp=?"); args.append(group)
     if fields:
         args.append(p["id"])
         with _conn() as c:

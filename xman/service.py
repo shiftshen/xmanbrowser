@@ -57,12 +57,14 @@ class ProxyIn(BaseModel):
     raw: str
     label: Optional[str] = None
     note: str = ""
+    group: str = ""
 
 
 class ProxyPatch(BaseModel):
     raw: Optional[str] = None
     label: Optional[str] = None
     note: Optional[str] = None
+    group: Optional[str] = None
 
 
 class GroupIn(BaseModel):
@@ -250,14 +252,19 @@ def delete_group(name: str):
 # ---------- proxy pool ----------
 
 @app.get("/api/proxies")
-def list_proxies():
-    return store.list_proxies()
+def list_proxies(group: Optional[str] = None):
+    return store.list_proxies(group=group)
+
+
+@app.get("/api/proxy-groups")
+def proxy_groups():
+    return store.proxy_groups()
 
 
 @app.post("/api/proxies", status_code=201)
 def add_proxy(body: ProxyIn):
     try:
-        return store.add_proxy(body.raw, label=body.label, note=body.note)
+        return store.add_proxy(body.raw, label=body.label, note=body.note, group=body.group)
     except Exception as e:
         raise HTTPException(400, str(e))
 
@@ -279,6 +286,7 @@ def patch_proxy(pid: str, body: ProxyPatch):
             raw=body.raw if body.raw is not None else ...,
             label=body.label if body.label is not None else ...,
             note=body.note if body.note is not None else ...,
+            group=body.group if body.group is not None else ...,
         )
     except KeyError:
         raise HTTPException(404, "proxy not found")

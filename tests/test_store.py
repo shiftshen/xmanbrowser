@@ -124,6 +124,18 @@ def test_proxy_auto_disable(home):
     assert got["last_ok"] is True and got["fail_count"] == 0 and got["enabled"] is True
 
 
+def test_proxy_groups(home):
+    from xman import store
+    store.add_proxy("socks5://h1:1080", label="a", group="us")
+    store.add_proxy("http://h2:8080", label="b", group="us")
+    store.add_proxy("http://h3:8080", label="c")  # ungrouped
+    assert {g["name"]: g["count"] for g in store.proxy_groups()} == {"us": 2}
+    assert len(store.list_proxies(group="us")) == 2
+    p = store.update_proxy("c", group="eu")
+    assert p["group"] == "eu"
+    assert {g["name"] for g in store.proxy_groups()} == {"us", "eu"}
+
+
 def test_providers(home):
     from xman import store
     prov = store.add_provider("rotating_gateway", "socks5://u:p@gw:7000", label="gw")
