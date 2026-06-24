@@ -264,6 +264,59 @@ def delete_proxy(pid: str):
         raise HTTPException(404, "proxy not found")
 
 
+@app.post("/api/proxies/{pid}/enabled")
+def set_proxy_enabled(pid: str, enabled: bool = True):
+    try:
+        return store.set_proxy_enabled(pid, enabled)
+    except KeyError:
+        raise HTTPException(404, "proxy not found")
+
+
+@app.post("/api/proxies/check-all")
+def check_all_proxies():
+    return store.check_all_proxies()
+
+
+# ---------- proxy providers (dynamic) ----------
+
+class ProviderIn(BaseModel):
+    kind: str          # api_extract | rotating_gateway
+    url: str
+    label: Optional[str] = None
+    note: str = ""
+
+
+@app.get("/api/providers")
+def list_providers():
+    return store.list_providers()
+
+
+@app.post("/api/providers", status_code=201)
+def add_provider(body: ProviderIn):
+    try:
+        return store.add_provider(body.kind, body.url, label=body.label, note=body.note)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/providers/{pid}", status_code=204)
+def delete_provider(pid: str):
+    try:
+        store.delete_provider(pid)
+    except KeyError:
+        raise HTTPException(404, "provider not found")
+
+
+@app.post("/api/providers/{pid}/refresh")
+def refresh_provider(pid: str):
+    try:
+        return store.refresh_provider(pid)
+    except KeyError:
+        raise HTTPException(404, "provider not found")
+    except Exception as e:
+        raise HTTPException(400, f"refresh failed: {e}")
+
+
 @app.post("/api/proxies/{pid}/check")
 def check_pool_proxy(pid: str):
     try:

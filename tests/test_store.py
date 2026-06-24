@@ -108,6 +108,44 @@ def test_proxy_bulk_import(home):
     assert len(store.list_proxies()) == 3
 
 
+def test_proxy_auto_disable(home):
+    from xman import store
+    p = store.add_proxy("socks5://h:1080")
+    for _ in range(store.AUTO_DISABLE_AFTER):
+        store.record_proxy_check(p["id"], None)
+    got = store.get_proxy(p["id"])
+    assert got["enabled"] is False and got["fail_count"] == store.AUTO_DISABLE_AFTER
+    # re-enable + a success resets the fail counter
+    store.set_proxy_enabled(p["id"], True)
+
+    class _Geo:
+        ip, country, country_code, timezone = "1.1.1.1", "US", "US", "America/New_York"
+    got = store.record_proxy_check(p["id"], _Geo())
+    assert got["last_ok"] is True and got["fail_count"] == 0 and got["enabled"] is True
+
+
+def test_providers(home):
+    from xman import store
+    prov = store.add_provider("rotating_gateway", "socks5://u:p@gw:7000", label="gw")
+    assert prov["kind"] == "rotating_gateway"
+    res = store.refresh_provider(prov["id"])
+    assert res["added"] == 1
+    assert store.list_proxies()[0]["source"] == "gw"
+    # refresh again is idempotent (same raw already present)
+    assert store.refresh_provider(prov["id"])["added"] == 0
+    store.delete_provider(prov["id"])
+    assert store.list_providers() == []
+    with pytest.raises(ValueError):
+        store.add_provider("bogus", "x")
+
+
+def test_provider_parsing():
+    from xman import proxy_providers as pp
+    assert pp._parse_payload(["1.2.3.4:8080", "bad", "socks5://h:1080"]) == ["1.2.3.4:8080", "socks5://h:1080"]
+    out = pp._parse_payload({"data": [{"ip": "9.9.9.9", "port": 3128, "protocol": "http"}]})
+    assert out == ["http://9.9.9.9:3128"]
+
+
 def test_proxy_api(home):
     from fastapi.testclient import TestClient
     from xman.service import app

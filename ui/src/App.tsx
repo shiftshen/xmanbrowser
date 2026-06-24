@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, GeoInfo, Group, PoolProxy, Profile } from "./api";
+import { api, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
@@ -17,6 +17,8 @@ export function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [proxies, setProxies] = useState<PoolProxy[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [editingProvider, setEditingProvider] = useState<boolean>(false);
   const [group, setGroup] = useState<string>(""); // "" = all
   const [search, setSearch] = useState("");
   const [online, setOnline] = useState<boolean | null>(null);
@@ -36,10 +38,11 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [ps, gs, px] = await Promise.all([api.list(search), api.groups(), api.proxies()]);
+      const [ps, gs, px, pv] = await Promise.all([api.list(search), api.groups(), api.proxies(), api.providers()]);
       setProfiles(ps);
       setGroups(gs);
       setProxies(px);
+      setProviders(pv);
     } catch (e: any) {
       flash(e.message, true);
     }
@@ -176,6 +179,7 @@ export function App() {
             </>
           ) : (
             <>
+              <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>Test all</button>
               <button onClick={() => setBulkOpen(true)}>Bulk import</button>
               <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
             </>
@@ -192,10 +196,15 @@ export function App() {
           ) : view === "proxies" ? (
             <ProxiesView
               proxies={proxies}
+              providers={providers}
               onAdd={() => setEditingProxy("new")}
               onEdit={(p) => setEditingProxy(p)}
               onCheck={(p) => act(() => api.checkPoolProxy(p.id), "checked")}
+              onToggle={(p) => act(() => api.setProxyEnabled(p.id, !p.enabled))}
               onDelete={(p) => confirm(`Delete proxy "${p.label}"?`) && act(() => api.deleteProxy(p.id), "deleted")}
+              onAddProvider={() => setEditingProvider(true)}
+              onRefreshProvider={(pv) => act(() => api.refreshProvider(pv.id), "refreshed from provider")}
+              onDeleteProvider={(pv) => confirm(`Delete provider "${pv.label}"?`) && act(() => api.deleteProvider(pv.id), "deleted")}
             />
           ) : visible.length === 0 ? (
             <div className="empty">
@@ -236,6 +245,13 @@ export function App() {
           proxy={editingProxy === "new" ? null : editingProxy}
           onClose={() => setEditingProxy(null)}
           onSaved={(m) => { setEditingProxy(null); flash(m); refresh(); }}
+          onError={(m) => flash(m, true)}
+        />
+      )}
+      {editingProvider && (
+        <ProviderModal
+          onClose={() => setEditingProvider(false)}
+          onSaved={(m) => { setEditingProvider(false); flash(m); refresh(); }}
           onError={(m) => flash(m, true)}
         />
       )}
@@ -301,49 +317,128 @@ function ProfileCard(props: {
 
 // ---------------- proxies view ----------------
 function ProxiesView(props: {
-  proxies: PoolProxy[];
+  proxies: PoolProxy[]; providers: Provider[];
   onAdd: () => void; onEdit: (p: PoolProxy) => void;
-  onCheck: (p: PoolProxy) => void; onDelete: (p: PoolProxy) => void;
+  onCheck: (p: PoolProxy) => void; onToggle: (p: PoolProxy) => void; onDelete: (p: PoolProxy) => void;
+  onAddProvider: () => void; onRefreshProvider: (p: Provider) => void; onDeleteProvider: (p: Provider) => void;
 }) {
-  if (props.proxies.length === 0)
-    return (
-      <div className="empty">
-        <div className="big">Your proxy pool is empty</div>
-        Add proxies once, then pick them by name when creating profiles.<br />
-        <button className="primary" style={{ marginTop: 14 }} onClick={props.onAdd}>＋ Add proxy</button>
-      </div>
-    );
   const mask = (raw: string) => raw.replace(/:([^:@/]+)@/, ":••••@");
   return (
-    <table className="ptable">
-      <thead>
-        <tr><th>Label</th><th>Address</th><th>Status</th><th></th></tr>
-      </thead>
-      <tbody>
-        {props.proxies.map((p) => (
-          <tr key={p.id}>
-            <td className="lbl">{p.label}{p.note && <div className="faint" style={{ fontWeight: 400, fontSize: 11 }}>{p.note}</div>}</td>
-            <td className="raw">{mask(p.raw)}</td>
-            <td>
-              {p.last_ok === true ? (
-                <span className="geo-badge ok">● {p.last_ip} · {p.last_cc} · {p.last_tz}</span>
-              ) : p.last_ok === false ? (
-                <span className="geo-badge bad">● failed</span>
-              ) : (
-                <span className="geo-badge none">○ not checked</span>
-              )}
-            </td>
-            <td>
-              <div className="row-actions">
-                <button className="sm" onClick={() => props.onCheck(p)}>Test</button>
-                <button className="sm" onClick={() => props.onEdit(p)}>Edit</button>
-                <button className="sm ghost danger" onClick={() => props.onDelete(p)}>✕</button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      {/* providers panel */}
+      <div className="providers">
+        <div className="providers-head">
+          <span className="sec-title">Providers <span className="faint">· auto-fetch proxies from an API or rotating gateway</span></span>
+          <button className="sm primary" onClick={props.onAddProvider}>＋ Add provider</button>
+        </div>
+        {props.providers.length === 0 ? (
+          <div className="faint" style={{ fontSize: 12.5, padding: "4px 2px" }}>
+            No providers. Add one to pull proxies automatically instead of pasting them.
+          </div>
+        ) : (
+          <div className="prov-list">
+            {props.providers.map((pv) => (
+              <div className="prov" key={pv.id}>
+                <span className="chip">{pv.kind === "api_extract" ? "API" : "gateway"}</span>
+                <b>{pv.label}</b>
+                <span className="raw" style={{ flex: 1 }}>{pv.url}</span>
+                {pv.last_count != null && <span className="faint">{pv.last_count} fetched</span>}
+                <button className="sm" onClick={() => props.onRefreshProvider(pv)}>Refresh</button>
+                <button className="sm ghost danger" onClick={() => props.onDeleteProvider(pv)}>✕</button>
               </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* pool table */}
+      {props.proxies.length === 0 ? (
+        <div className="empty">
+          <div className="big">Your proxy pool is empty</div>
+          Add proxies manually, paste many via Bulk import, or attach a provider above.<br />
+          <button className="primary" style={{ marginTop: 14 }} onClick={props.onAdd}>＋ Add proxy</button>
+        </div>
+      ) : (
+        <table className="ptable">
+          <thead>
+            <tr><th></th><th>Label</th><th>Address</th><th>Status</th><th>Source</th><th></th></tr>
+          </thead>
+          <tbody>
+            {props.proxies.map((p) => (
+              <tr key={p.id} style={{ opacity: p.enabled ? 1 : 0.5 }}>
+                <td>
+                  <span className={`toggle ${p.enabled ? "on" : ""}`} onClick={() => props.onToggle(p)} title={p.enabled ? "enabled" : "disabled"}>
+                    <span className="knob" />
+                  </span>
+                </td>
+                <td className="lbl">{p.label}{p.note && <div className="faint" style={{ fontWeight: 400, fontSize: 11 }}>{p.note}</div>}</td>
+                <td className="raw">{mask(p.raw)}</td>
+                <td>
+                  {p.last_ok === true ? (
+                    <span className="geo-badge ok">● {p.last_ip} · {p.last_cc} · {p.last_tz}</span>
+                  ) : p.last_ok === false ? (
+                    <span className="geo-badge bad">● failed ×{p.fail_count}</span>
+                  ) : (
+                    <span className="geo-badge none">○ not checked</span>
+                  )}
+                </td>
+                <td className="faint" style={{ fontSize: 12 }}>{p.source ?? "manual"}</td>
+                <td>
+                  <div className="row-actions">
+                    <button className="sm" onClick={() => props.onCheck(p)}>Test</button>
+                    <button className="sm" onClick={() => props.onEdit(p)}>Edit</button>
+                    <button className="sm ghost danger" onClick={() => props.onDelete(p)}>✕</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function ProviderModal(props: {
+  onClose: () => void; onSaved: (m: string) => void; onError: (m: string) => void;
+}) {
+  const [kind, setKind] = useState("api_extract");
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try { await api.addProvider(kind, url.trim(), label.trim() || undefined); props.onSaved("provider added"); }
+    catch (e: any) { props.onError(e.message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="overlay" onClick={props.onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Add proxy provider</h2>
+        <div className="desc">Pull proxies automatically. <b>API</b> fetches a list from a URL (JSON or one-per-line); <b>Gateway</b> is a single rotating endpoint.</div>
+        <div className="field">
+          <label>Kind</label>
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="api_extract">API extract (fetch a proxy list)</option>
+            <option value="rotating_gateway">Rotating gateway (single endpoint)</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>{kind === "api_extract" ? "List URL" : "Gateway address"}</label>
+          <input value={url} onChange={(e) => setUrl(e.target.value)}
+            placeholder={kind === "api_extract" ? "https://provider.com/api/proxies?token=…" : "socks5://user:pass@gw.provider.com:7000"} />
+        </div>
+        <div className="field">
+          <label>Label <span className="hint">· auto (provider01) if empty</span></label>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="provider01" />
+        </div>
+        <div className="foot">
+          <button onClick={props.onClose}>Cancel</button>
+          <button className="primary" onClick={save} disabled={busy || !url}>{busy ? "Adding…" : "Add"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

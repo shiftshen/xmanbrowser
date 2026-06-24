@@ -54,11 +54,25 @@ export interface PoolProxy {
   last_tz: string | null;
   last_ok: boolean | null;
   checked_at: number | null;
+  enabled: boolean;
+  fail_count: number;
+  success_count: number;
+  source: string | null;
 }
 
 export interface Group {
   name: string;
   count: number;
+}
+
+export interface Provider {
+  id: string;
+  label: string;
+  kind: "api_extract" | "rotating_gateway";
+  url: string;
+  note: string;
+  last_count: number | null;
+  refreshed_at: number | null;
 }
 
 // In the Tauri production webview the app loads from tauri://localhost, where a
@@ -182,4 +196,21 @@ export const api = {
     xfetch(`${BASE}/proxies/${id}`, { method: "DELETE" }).then((r) => j<void>(r)),
   checkPoolProxy: (id: string) =>
     xfetch(`${BASE}/proxies/${id}/check`, { method: "POST" }).then((r) => j<PoolProxy>(r)),
+  setProxyEnabled: (id: string, enabled: boolean) =>
+    xfetch(`${BASE}/proxies/${id}/enabled?enabled=${enabled}`, { method: "POST" }).then((r) => j<PoolProxy>(r)),
+  checkAllProxies: () =>
+    xfetch(`${BASE}/proxies/check-all`, { method: "POST" }).then((r) => j<{ checked: number; ok: number; failed: number }>(r)),
+
+  // dynamic proxy providers
+  providers: () => xfetch(`${BASE}/providers`).then((r) => j<Provider[]>(r)),
+  addProvider: (kind: string, url: string, label?: string, note = "") =>
+    xfetch(`${BASE}/providers`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind, url, label, note }),
+    }).then((r) => j<Provider>(r)),
+  deleteProvider: (id: string) =>
+    xfetch(`${BASE}/providers/${id}`, { method: "DELETE" }).then((r) => j<void>(r)),
+  refreshProvider: (id: string) =>
+    xfetch(`${BASE}/providers/${id}/refresh`, { method: "POST" }).then((r) => j<{ fetched: number; added: number }>(r)),
 };

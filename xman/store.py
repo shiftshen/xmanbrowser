@@ -42,6 +42,21 @@ CREATE TABLE IF NOT EXISTS proxies (
     last_tz      TEXT,
     last_ok      INTEGER,               -- 1 ok / 0 fail / NULL never checked
     checked_at   REAL,
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    fail_count   INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    source       TEXT,                  -- provider label this proxy came from (NULL = manual)
+    created_at   REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS proxy_providers (
+    id           TEXT PRIMARY KEY,
+    label        TEXT NOT NULL UNIQUE,
+    kind         TEXT NOT NULL,         -- 'api_extract' | 'rotating_gateway'
+    url          TEXT NOT NULL,
+    note         TEXT NOT NULL DEFAULT '',
+    last_count   INTEGER,
+    refreshed_at REAL,
     created_at   REAL NOT NULL
 );
 
@@ -50,6 +65,22 @@ CREATE TABLE IF NOT EXISTS groups (
     created_at   REAL NOT NULL
 );
 """
+
+# Columns added after the proxies table first shipped — added in-place for DBs
+# created by an earlier version.
+_PROXY_MIGRATIONS = {
+    "enabled": "ALTER TABLE proxies ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
+    "fail_count": "ALTER TABLE proxies ADD COLUMN fail_count INTEGER NOT NULL DEFAULT 0",
+    "success_count": "ALTER TABLE proxies ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0",
+    "source": "ALTER TABLE proxies ADD COLUMN source TEXT",
+}
+
+
+def _migrate_columns(c: sqlite3.Connection) -> None:
+    have = {r[1] for r in c.execute("PRAGMA table_info(proxies)").fetchall()}
+    for col, ddl in _PROXY_MIGRATIONS.items():
+        if col not in have:
+            c.execute(ddl)
 
 
 def db_path() -> Path:
@@ -64,6 +95,7 @@ def _conn() -> Iterator[sqlite3.Connection]:
     try:
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(_SCHEMA)
+        _migrate_columns(c)
         yield c
         c.commit()
     finally:
@@ -291,6 +323,7 @@ def delete_group(name: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _proxy_row(r: sqlite3.Row) -> dict:
+    keys = r.keys()
     return {
         "id": r["id"],
         "label": r["label"],
@@ -302,6 +335,10 @@ def _proxy_row(r: sqlite3.Row) -> dict:
         "last_tz": r["last_tz"],
         "last_ok": None if r["last_ok"] is None else bool(r["last_ok"]),
         "checked_at": r["checked_at"],
+        "enabled": bool(r["enabled"]) if "enabled" in keys else True,
+        "fail_count": r["fail_count"] if "fail_count" in keys else 0,
+        "success_count": r["success_count"] if "success_count" in keys else 0,
+        "source": r["source"] if "source" in keys else None,
     }
 
 
@@ -319,16 +356,24 @@ def get_proxy(pid: str) -> dict:
     return _proxy_row(r)
 
 
-def add_proxy(raw: str, *, label: Optional[str] = None, note: str = "") -> dict:
+def add_proxy(raw: str, *, label: Optional[str] = None, note: str = "",
+              source: Optional[str] = None) -> dict:
     Proxy.parse(raw)  # validate
     label = label or _next_proxy_label()
     pid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
-            "INSERT INTO proxies (id,label,raw,note,created_at) VALUES (?,?,?,?,?)",
-            (pid, label, raw, note, time.time()),
+            "INSERT INTO proxies (id,label,raw,note,source,created_at) VALUES (?,?,?,?,?,?)",
+            (pid, label, raw, note, source, time.time()),
         )
     return get_proxy(pid)
+
+
+def set_proxy_enabled(pid: str, enabled: bool) -> dict:
+    p = get_proxy(pid)
+    with _conn() as c:
+        c.execute("UPDATE proxies SET enabled=? WHERE id=?", (1 if enabled else 0, p["id"]))
+    return get_proxy(p["id"])
 
 
 def add_proxies_bulk(text: str) -> dict:
@@ -381,19 +426,129 @@ def delete_proxy(pid: str) -> None:
         c.execute("DELETE FROM proxies WHERE id=?", (p["id"],))
 
 
+# A proxy is auto-disabled after this many consecutive failed checks.
+AUTO_DISABLE_AFTER = 3
+
+
 def record_proxy_check(pid: str, geo) -> dict:
-    """Persist the latest health-check result (geo is a proxy.GeoInfo or None)."""
+    """Persist the latest health-check result (geo is a proxy.GeoInfo or None).
+
+    Updates success/fail counters and auto-disables a proxy after
+    AUTO_DISABLE_AFTER consecutive failures (the "kick bad proxies" behaviour).
+    """
     p = get_proxy(pid)
     with _conn() as c:
         if geo is None:
+            fails = (p["fail_count"] or 0) + 1
+            enabled = 0 if fails >= AUTO_DISABLE_AFTER else (1 if p["enabled"] else 0)
             c.execute(
-                "UPDATE proxies SET last_ok=0, checked_at=? WHERE id=?",
-                (time.time(), p["id"]),
+                "UPDATE proxies SET last_ok=0, fail_count=?, enabled=?, checked_at=? WHERE id=?",
+                (fails, enabled, time.time(), p["id"]),
             )
         else:
             c.execute(
-                "UPDATE proxies SET last_ok=1, last_ip=?, last_country=?, last_cc=?, "
-                "last_tz=?, checked_at=? WHERE id=?",
+                "UPDATE proxies SET last_ok=1, fail_count=0, success_count=success_count+1, "
+                "last_ip=?, last_country=?, last_cc=?, last_tz=?, checked_at=? WHERE id=?",
                 (geo.ip, geo.country, geo.country_code, geo.timezone, time.time(), p["id"]),
             )
     return get_proxy(p["id"])
+
+
+def check_all_proxies() -> dict:
+    """Health-check every pool proxy; returns counts. Auto-disables dead ones."""
+    from .proxy import check_and_locate
+    ok = bad = 0
+    for p in list_proxies():
+        try:
+            geo = check_and_locate(Proxy.parse(p["raw"]))
+            record_proxy_check(p["id"], geo)
+            ok += 1
+        except Exception:
+            record_proxy_check(p["id"], None)
+            bad += 1
+    return {"checked": ok + bad, "ok": ok, "failed": bad}
+
+
+def next_enabled_proxy() -> Optional[dict]:
+    """Round-robin an enabled proxy (rotation). Skips disabled ones."""
+    pool = [p for p in list_proxies() if p["enabled"]]
+    if not pool:
+        return None
+    # rotate by least-recently-checked to spread usage
+    pool.sort(key=lambda p: p["checked_at"] or 0)
+    return pool[0]
+
+
+# ---------------------------------------------------------------------------
+# Dynamic proxy providers (api_extract / rotating_gateway)
+# ---------------------------------------------------------------------------
+
+def _provider_row(r: sqlite3.Row) -> dict:
+    return {
+        "id": r["id"], "label": r["label"], "kind": r["kind"], "url": r["url"],
+        "note": r["note"], "last_count": r["last_count"], "refreshed_at": r["refreshed_at"],
+    }
+
+
+def list_providers() -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM proxy_providers ORDER BY created_at").fetchall()
+    return [_provider_row(r) for r in rows]
+
+
+def get_provider(pid: str) -> dict:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM proxy_providers WHERE id=? OR label=?", (pid, pid)).fetchone()
+    if not r:
+        raise KeyError(f"provider not found: {pid}")
+    return _provider_row(r)
+
+
+def add_provider(kind: str, url: str, *, label: Optional[str] = None, note: str = "") -> dict:
+    if kind not in ("api_extract", "rotating_gateway"):
+        raise ValueError(f"unknown provider kind: {kind!r}")
+    label = label or _next_label("proxy_providers", "provider")
+    pid = uuid.uuid4().hex[:12]
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO proxy_providers (id,label,kind,url,note,created_at) VALUES (?,?,?,?,?,?)",
+            (pid, label, kind, url, note, time.time()),
+        )
+    return get_provider(pid)
+
+
+def delete_provider(pid: str) -> None:
+    p = get_provider(pid)
+    with _conn() as c:
+        c.execute("DELETE FROM proxy_providers WHERE id=?", (p["id"],))
+
+
+def refresh_provider(pid: str) -> dict:
+    """Fetch proxies from the provider and add new ones to the pool."""
+    from . import proxy_providers as pp
+    prov = get_provider(pid)
+    raws = pp.fetch(prov["kind"], prov["url"])
+    existing = {p["raw"] for p in list_proxies()}
+    added = []
+    for raw in raws:
+        if raw in existing:
+            continue
+        try:
+            added.append(add_proxy(raw, source=prov["label"]))
+            existing.add(raw)
+        except Exception:
+            pass
+    with _conn() as c:
+        c.execute("UPDATE proxy_providers SET last_count=?, refreshed_at=? WHERE id=?",
+                  (len(raws), time.time(), prov["id"]))
+    return {"fetched": len(raws), "added": len(added), "provider": get_provider(prov["id"])}
+
+
+def _next_label(table: str, prefix: str) -> str:
+    import re
+    with _conn() as c:
+        labels = {r[0] for r in c.execute(f"SELECT label FROM {table}").fetchall()}
+    pat = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    used = [int(m.group(1)) for n in labels if (m := pat.match(n))]
+    nxt = (max(used) + 1) if used else 1
+    return f"{prefix}{nxt:02d}"
