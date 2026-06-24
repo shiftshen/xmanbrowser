@@ -171,6 +171,20 @@ export function App() {
             <>
               <input className="search" placeholder="Search…" value={search}
                 onChange={(e) => { setSearch(e.target.value); }} />
+              {(() => {
+                const idle = visible.filter((p) => !p.running).map((p) => p.id);
+                const live = visible.filter((p) => p.running).map((p) => p.id);
+                return (
+                  <>
+                    {idle.length > 0 && (
+                      <button title={`Launch ${idle.length}`} onClick={() => act(() => api.batchLaunch(idle), `launching ${idle.length}`)}>▶ Launch all</button>
+                    )}
+                    {live.length > 0 && (
+                      <button className="danger" title={`Stop ${live.length}`} onClick={() => act(() => api.batchStop(live), `stopping ${live.length}`)}>■ Stop all</button>
+                    )}
+                  </>
+                );
+              })()}
               <button onClick={() => fileRef.current?.click()}>Import</button>
               <button onClick={onExport}>Export</button>
               <button className="primary" onClick={() => setEditing("new")}>＋ New profile</button>

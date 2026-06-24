@@ -146,6 +146,17 @@ export const api = {
 
   stop: (id: string) => xfetch(`${BASE}/profiles/${id}/stop`, { method: "POST" }).then((r) => j<{ stopped: boolean }>(r)),
 
+  batchLaunch: (ids: string[]) =>
+    xfetch(`${BASE}/batch/launch`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).then((r) => j<any[]>(r)),
+  batchStop: (ids: string[]) =>
+    xfetch(`${BASE}/batch/stop`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).then((r) => j<any[]>(r)),
+
   checkProxy: (proxy: string) =>
     xfetch(`${BASE}/proxy/check?proxy=${encodeURIComponent(proxy)}`).then((r) => j<GeoInfo>(r)),
 

@@ -181,6 +181,36 @@ def stop_profile(name_or_id: str):
     return {"stopped": manager.stop(prof.id)}
 
 
+class BatchReq(BaseModel):
+    ids: list[str]
+    url: str = "about:blank"
+    headless: bool = False
+
+
+@app.post("/api/batch/launch")
+def batch_launch(body: BatchReq):
+    out = []
+    for name_or_id in body.ids:
+        try:
+            prof = store.get(name_or_id)
+            out.append(manager.launch(prof.id, url=body.url, headless=body.headless))
+        except Exception as e:  # noqa: BLE001
+            out.append({"profile_id": name_or_id, "error": str(e)})
+    return out
+
+
+@app.post("/api/batch/stop")
+def batch_stop(body: BatchReq):
+    out = []
+    for name_or_id in body.ids:
+        try:
+            prof = store.get(name_or_id)
+            out.append({"profile_id": prof.id, "stopped": manager.stop(prof.id)})
+        except Exception as e:  # noqa: BLE001
+            out.append({"profile_id": name_or_id, "error": str(e)})
+    return out
+
+
 @app.get("/api/running")
 def running():
     return manager.status()
