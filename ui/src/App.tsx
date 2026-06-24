@@ -48,7 +48,10 @@ export function App() {
     }
   }, [search, flash]);
 
-  // poll backend until reachable; keep badges live
+  // poll backend until reachable; keep badges live. Poll fast at first so the
+  // few-second startup feels snappy; only surface a technical error if it stays
+  // down well past a normal cold start.
+  const startRef = useRef<number>(Date.now());
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -57,6 +60,7 @@ export function App() {
         const h = await api.health();
         if (cancelled) return;
         setVersion(h.version);
+        setConnErr("");
         setOnline((was) => {
           if (!was) refresh();
           return true;
@@ -65,10 +69,15 @@ export function App() {
       } catch (e: any) {
         if (!cancelled) {
           setOnline(false);
-          setConnErr(String(e?.message ?? e));
+          // hide the raw error during the normal startup window (~15s)
+          const waited = Date.now() - startRef.current;
+          setConnErr(waited > 15000 ? String(e?.message ?? e) : "");
         }
       }
-      if (!cancelled) timer = setTimeout(tick, 2500);
+      if (!cancelled) {
+        const waited = Date.now() - startRef.current;
+        timer = setTimeout(tick, online ? 2500 : waited < 12000 ? 700 : 2500);
+      }
     };
     tick();
     return () => {
@@ -202,10 +211,16 @@ export function App() {
 
         <div className="content">
           {!online ? (
-            <div className="empty">
-              <div className="big">Connecting to the local engine…</div>
-              This starts automatically and can take a few seconds on launch.
-              {connErr && <div style={{ color: "#ff8a7d", fontSize: 12, marginTop: 8 }}>last error: {connErr}</div>}
+            <div className="loading">
+              <div className="spinner" />
+              <div className="big">Starting the local engine…</div>
+              <div className="muted">This launches automatically — the first start can take a few seconds.</div>
+              {connErr && (
+                <div className="retry-note">
+                  Still starting. On a fresh machine the browser engine may be downloading.
+                  <div style={{ color: "#ff8a7d", fontSize: 11, marginTop: 6 }}>{connErr}</div>
+                </div>
+              )}
             </div>
           ) : view === "proxies" ? (
             <ProxiesView

@@ -16,11 +16,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
-from browserforge.fingerprints import Screen
-
-from camoufox.fingerprints import generate_fingerprint, from_browserforge
-from camoufox.pkgman import installed_verstr
-from camoufox.utils import get_target_os, sample_webgl, update_fonts
+# NOTE: camoufox/browserforge are imported lazily inside the generators — they
+# are heavy modules, and importing them at startup slows the API boot noticeably.
 
 # OS choices we expose. Camoufox keeps UA/platform/fonts/webgl internally
 # consistent per OS, so picking one OS keeps the fingerprint coherent.
@@ -86,6 +83,11 @@ def _generate(os: str, screen: Optional[tuple[int, int]]) -> FingerprintSpec:
     reproducibility is controlled by the caller seeding `random` (see
     `generate_spec`), not by a private Random instance.
     """
+    from browserforge.fingerprints import Screen
+    from camoufox.fingerprints import generate_fingerprint, from_browserforge
+    from camoufox.pkgman import installed_verstr
+    from camoufox.utils import get_target_os, sample_webgl, update_fonts
+
     if screen is None:
         screen = random.choice(_SCREENS[os])
     w, h = screen

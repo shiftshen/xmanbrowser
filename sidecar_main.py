@@ -40,10 +40,13 @@ def main() -> None:
 
     host = os.environ.get("XMAN_HOST", "127.0.0.1")
     port = int(os.environ.get("XMAN_PORT", "8723"))
-    _ensure_engine()
+    # Bring the API up immediately; download/verify the browser engine in the
+    # background so the UI connects in ~1s instead of waiting on engine checks.
+    import threading
+    threading.Thread(target=_ensure_engine, daemon=True).start()
     import uvicorn
     from xman.service import app
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
 if __name__ == "__main__":
