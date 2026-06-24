@@ -98,6 +98,16 @@ def test_proxy_pool(home):
         store.add_proxy("not-a-proxy://")
 
 
+def test_proxy_bulk_import(home):
+    from xman import store
+    res = store.add_proxies_bulk(
+        "socks5://u:p@1.2.3.4:1080\n# comment\n\nhttp://h:8080\nbad-no-port\n5.6.7.8:3128:u:p"
+    )
+    assert len(res["added"]) == 3
+    assert len(res["errors"]) == 1 and "bad-no-port" in res["errors"][0]["line"]
+    assert len(store.list_proxies()) == 3
+
+
 def test_proxy_api(home):
     from fastapi.testclient import TestClient
     from xman.service import app

@@ -166,6 +166,12 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ raw, label, note }),
     }).then((r) => j<PoolProxy>(r)),
+  addProxiesBulk: (text: string) =>
+    xfetch(`${BASE}/proxies/bulk`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).then((r) => j<{ added: PoolProxy[]; errors: { line: string; error: string }[] }>(r)),
   updateProxy: (id: string, body: Partial<Pick<PoolProxy, "label" | "raw" | "note">>) =>
     xfetch(`${BASE}/proxies/${id}`, {
       method: "PATCH",

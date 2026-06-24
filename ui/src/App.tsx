@@ -24,6 +24,7 @@ export function App() {
   const [connErr, setConnErr] = useState("");
   const [editing, setEditing] = useState<Profile | "new" | null>(null);
   const [editingProxy, setEditingProxy] = useState<PoolProxy | "new" | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [detail, setDetail] = useState<Profile | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -174,7 +175,10 @@ export function App() {
                 onChange={(e) => e.target.files?.[0] && onImportFile(e.target.files[0])} />
             </>
           ) : (
-            <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
+            <>
+              <button onClick={() => setBulkOpen(true)}>Bulk import</button>
+              <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
+            </>
           )}
         </div>
 
@@ -232,6 +236,13 @@ export function App() {
           proxy={editingProxy === "new" ? null : editingProxy}
           onClose={() => setEditingProxy(null)}
           onSaved={(m) => { setEditingProxy(null); flash(m); refresh(); }}
+          onError={(m) => flash(m, true)}
+        />
+      )}
+      {bulkOpen && (
+        <BulkProxyModal
+          onClose={() => setBulkOpen(false)}
+          onDone={(n, errs) => { setBulkOpen(false); flash(errs ? `added ${n}, ${errs} failed` : `added ${n} proxies`); refresh(); }}
           onError={(m) => flash(m, true)}
         />
       )}
@@ -522,6 +533,41 @@ function ProxyModal(props: {
         <div className="foot">
           <button onClick={props.onClose}>Cancel</button>
           <button className="primary" onClick={save} disabled={busy || !raw}>{busy ? "Saving…" : isNew ? "Add" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- bulk proxy import ----------------
+function BulkProxyModal(props: {
+  onClose: () => void; onDone: (added: number, errors: number) => void; onError: (m: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const lines = text.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const r = await api.addProxiesBulk(text);
+      props.onDone(r.added.length, r.errors.length);
+    } catch (e: any) { props.onError(e.message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="overlay" onClick={props.onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Bulk import proxies</h2>
+        <div className="desc">One proxy per line. Formats: <code>scheme://user:pass@host:port</code>, <code>host:port:user:pass</code>, or <code>host:port</code>. Blank / # lines are ignored.</div>
+        <div className="field">
+          <textarea style={{ minHeight: 180, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
+            value={text} onChange={(e) => setText(e.target.value)}
+            placeholder={"socks5://user:pass@1.2.3.4:1080\nhttp://gw.example.com:8080\n5.6.7.8:1080:user:pass"} />
+        </div>
+        <div className="foot">
+          <span className="faint" style={{ marginRight: "auto", alignSelf: "center" }}>{lines} line{lines === 1 ? "" : "s"}</span>
+          <button onClick={props.onClose}>Cancel</button>
+          <button className="primary" onClick={submit} disabled={busy || !lines}>{busy ? "Importing…" : `Import ${lines}`}</button>
         </div>
       </div>
     </div>

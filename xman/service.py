@@ -232,6 +232,15 @@ def add_proxy(body: ProxyIn):
         raise HTTPException(400, str(e))
 
 
+class BulkProxies(BaseModel):
+    text: str
+
+
+@app.post("/api/proxies/bulk")
+def add_proxies_bulk(body: BulkProxies):
+    return store.add_proxies_bulk(body.text)
+
+
 @app.patch("/api/proxies/{pid}")
 def patch_proxy(pid: str, body: ProxyPatch):
     try:

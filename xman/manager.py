@@ -85,13 +85,17 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
     if headless:
         cmd.append("--headless")
     # Detach into its own process group so terminating the API won't kill browsers.
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-        env={**os.environ},
-    )
+    # POSIX: new session. Windows: new process group (no setsid).
+    popen_kw: dict = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "env": {**os.environ},
+    }
+    if os.name == "nt":
+        popen_kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+    else:
+        popen_kw["start_new_session"] = True
+    proc = subprocess.Popen(cmd, **popen_kw)
     rec = {"pid": proc.pid, "started_at": time.time()}
     d[profile_id] = rec
     _save(d)
@@ -104,14 +108,25 @@ def stop(profile_id: str) -> bool:
     _save(d)
     if not rec:
         return False
+    pid = rec["pid"]
+    if os.name == "nt":
+        # Force-kill the whole tree (runner + Camoufox children).
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
+        except Exception:
+            return False
+        return True
     try:
         # Kill the whole process group (runner + its Camoufox child).
-        os.killpg(os.getpgid(rec["pid"]), signal.SIGTERM)
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
     except ProcessLookupError:
         return True
     except Exception:
         try:
-            os.kill(rec["pid"], signal.SIGTERM)
+            os.kill(pid, signal.SIGTERM)
         except Exception:
             return False
     return True

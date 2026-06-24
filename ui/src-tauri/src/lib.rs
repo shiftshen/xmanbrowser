@@ -21,7 +21,12 @@ fn spawn_backend() -> Option<Child> {
         .map(|p| p.to_path_buf());
 
     if let Some(dir) = &app_dir {
-        let py = dir.join(".venv/bin/python");
+        // venv layout differs: POSIX => .venv/bin/python, Windows => .venv/Scripts/python.exe
+        let py = if cfg!(windows) {
+            dir.join(".venv").join("Scripts").join("python.exe")
+        } else {
+            dir.join(".venv").join("bin").join("python")
+        };
         if py.exists() {
             match Command::new(&py)
                 .args(["-m", "xman.cli", "serve"])

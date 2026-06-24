@@ -1,0 +1,61 @@
+name: Desktop build
+
+# Builds the XMan desktop shell for macOS + Windows.
+# Trigger manually (Actions ▸ Desktop build ▸ Run) or on a version tag.
+# NOTE: this bundles the Tauri shell + UI only. The Python/Camoufox backend is
+# not yet packaged as a sidecar, so the produced installers expect the backend
+# to be available (dev venv or `xman serve`). Sidecar bundling is tracked
+# separately.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ui/src-tauri
+
+      - name: Install UI deps
+        working-directory: ui
+        run: npm ci || npm install
+
+      - name: Build desktop bundle
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: ui
+          args: --target ${{ matrix.target }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: xman-${{ matrix.target }}
+          path: |
+            ui/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            ui/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+            ui/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            ui/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+          if-no-files-found: ignore

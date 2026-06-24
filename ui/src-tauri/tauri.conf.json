@@ -27,7 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "app"],
+    "targets": "all",
     "category": "DeveloperTool",
     "shortDescription": "Open-source fingerprint browser",
     "longDescription": "XMan — free & open-source macOS fingerprint browser. Isolated profiles with consistent fingerprints, per-profile proxy, and storage isolation.",

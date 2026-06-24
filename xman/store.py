@@ -331,6 +331,24 @@ def add_proxy(raw: str, *, label: Optional[str] = None, note: str = "") -> dict:
     return get_proxy(pid)
 
 
+def add_proxies_bulk(text: str) -> dict:
+    """Add many proxies at once — one per line (blank / '#' lines skipped).
+
+    Borrowed pattern from the legacy proxy-management UI. Returns the rows that
+    were added and any per-line errors so the UI can report them.
+    """
+    added, errors = [], []
+    for raw in text.splitlines():
+        raw = raw.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        try:
+            added.append(add_proxy(raw))
+        except Exception as e:  # noqa: BLE001 — surface bad lines, keep going
+            errors.append({"line": raw, "error": str(e)})
+    return {"added": added, "errors": errors}
+
+
 def _next_proxy_label(prefix: str = "proxy") -> str:
     import re
     labels = {p["label"] for p in list_proxies()}
