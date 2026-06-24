@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Local app data / demo homes (never commit profiles or browser storage)
+.xman*/
+
+# Tests
+.pytest_cache/
+
+# Node / Vite / Tauri build outputs
+node_modules/
+ui/dist/
+ui/src-tauri/target/
+ui/src-tauri/gen/

@@ -1,0 +1,128 @@
+// Thin client for the XMan local control API (FastAPI on 127.0.0.1:8723).
+//
+// Inside the Tauri webview, browser fetch to http://127.0.0.1 is blocked by
+// WKWebView (ATS / mixed-content from the tauri:// origin). The Tauri HTTP
+// plugin performs the request natively in Rust, bypassing that entirely. In a
+// plain browser (dev) we use the normal fetch; CORS on the API is permissive.
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+
+const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const xfetch: typeof fetch = isTauri ? (tauriFetch as typeof fetch) : window.fetch.bind(window);
+
+export interface FingerprintSummary {
+  os: string;
+  userAgent: string;
+  platform: string;
+  hardwareConcurrency: number;
+  screen: string;
+  webglVendor: string;
+  webglRenderer: string;
+  canvasOffset: number;
+  fontSpacingSeed: number;
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  group: string;
+  note: string;
+  proxy_raw: string | null;
+  os: string;
+  fingerprint: FingerprintSummary;
+  running: boolean;
+  user_data_dir?: string;
+}
+
+export interface GeoInfo {
+  ip: string;
+  country?: string;
+  country_code?: string;
+  city?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+// In the Tauri production webview the app loads from tauri://localhost, where a
+// relative "/api" has no dev proxy to ride on — so always target the control
+// service's absolute localhost URL. The API enables permissive CORS, so this
+// works equally from the Vite dev server, a plain browser, and the Tauri webview.
+// Override with VITE_XMAN_API if the service runs on a non-default host/port.
+const API_ORIGIN = (import.meta as any).env?.VITE_XMAN_API ?? "http://127.0.0.1:8723";
+const BASE = `${API_ORIGIN}/api`;
+
+async function j<T>(r: Response): Promise<T> {
+  if (!r.ok) {
+    let msg = r.statusText;
+    try {
+      const b = await r.json();
+      msg = b.detail ?? msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return r.status === 204 ? (undefined as T) : r.json();
+}
+
+export const api = {
+  health: () => xfetch(`${BASE}/health`).then((r) => j<{ ok: boolean; version: string }>(r)),
+
+  list: (search?: string, group?: string) => {
+    const q = new URLSearchParams();
+    if (search) q.set("search", search);
+    if (group) q.set("group", group);
+    return xfetch(`${BASE}/profiles?${q}`).then((r) => j<Profile[]>(r));
+  },
+
+  get: (id: string) => xfetch(`${BASE}/profiles/${id}`).then((r) => j<Profile>(r)),
+
+  create: (body: {
+    name: string;
+    os: string;
+    proxy?: string | null;
+    group?: string;
+    note?: string;
+    seed?: number | null;
+  }) =>
+    xfetch(`${BASE}/profiles`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => j<Profile>(r)),
+
+  update: (id: string, body: Partial<Pick<Profile, "name" | "group" | "note">> & { proxy?: string }) =>
+    xfetch(`${BASE}/profiles/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => j<Profile>(r)),
+
+  remove: (id: string) => xfetch(`${BASE}/profiles/${id}`, { method: "DELETE" }).then((r) => j<void>(r)),
+
+  clone: (id: string, newName: string, regen = true) =>
+    xfetch(`${BASE}/profiles/${id}/clone?new_name=${encodeURIComponent(newName)}&regenerate_fingerprint=${regen}`, {
+      method: "POST",
+    }).then((r) => j<Profile>(r)),
+
+  launch: (id: string, url = "about:blank", headless = false) =>
+    xfetch(`${BASE}/profiles/${id}/launch`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url, headless }),
+    }).then((r) => j<{ pid: number; already_running: boolean }>(r)),
+
+  stop: (id: string) => xfetch(`${BASE}/profiles/${id}/stop`, { method: "POST" }).then((r) => j<{ stopped: boolean }>(r)),
+
+  checkProxy: (proxy: string) =>
+    xfetch(`${BASE}/proxy/check?proxy=${encodeURIComponent(proxy)}`).then((r) => j<GeoInfo>(r)),
+
+  exportAll: () => xfetch(`${BASE}/export`).then((r) => j<any[]>(r)),
+
+  importProfiles: (profiles: any[]) =>
+    xfetch(`${BASE}/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(profiles),
+    }).then((r) => j<any[]>(r)),
+};
