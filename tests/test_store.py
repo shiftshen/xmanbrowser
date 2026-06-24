@@ -62,6 +62,53 @@ def test_export_import_roundtrip(home):
     assert imp.fingerprint.config == store.get("x").fingerprint.config
 
 
+def test_auto_name(home):
+    from xman import store
+    a = store.create(os_name="macos", seed=1)
+    b = store.create(os_name="macos", seed=2)
+    assert a.name == "xman01" and b.name == "xman02"
+    # custom names don't disturb the sequence
+    store.create("mine", seed=3)
+    c = store.create(os_name="macos", seed=4)
+    assert c.name == "xman03"
+
+
+def test_groups(home):
+    from xman import store
+    store.create("a", group="shopping", seed=1)
+    names = {g["name"] for g in store.list_groups()}
+    assert {"default", "shopping"} <= names
+    counts = {g["name"]: g["count"] for g in store.list_groups()}
+    assert counts["shopping"] == 1
+    store.delete_group("shopping")
+    assert store.get("a").group == "default"  # reassigned, not deleted
+
+
+def test_proxy_pool(home):
+    from xman import store
+    p = store.add_proxy("socks5://u:pw@host:1080")
+    assert p["label"] == "proxy01"
+    p2 = store.add_proxy("http://h:8080", label="dc")
+    assert {x["label"] for x in store.list_proxies()} == {"proxy01", "dc"}
+    store.update_proxy(p["id"], note="hello")
+    assert store.get_proxy(p["id"])["note"] == "hello"
+    store.delete_proxy(p2["id"])
+    assert len(store.list_proxies()) == 1
+    with pytest.raises(Exception):
+        store.add_proxy("not-a-proxy://")
+
+
+def test_proxy_api(home):
+    from fastapi.testclient import TestClient
+    from xman.service import app
+    c = TestClient(app)
+    r = c.post("/api/proxies", json={"raw": "socks5://u:p@h:1080", "label": "x"})
+    assert r.status_code == 201 and r.json()["label"] == "x"
+    assert c.get("/api/proxies").json()[0]["label"] == "x"
+    assert c.get("/api/next-name").json()["name"] == "xman01"
+    assert any(g["name"] == "default" for g in c.get("/api/groups").json())
+
+
 def test_api_health_and_create(home):
     from fastapi.testclient import TestClient
     from xman.service import app

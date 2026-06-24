@@ -43,6 +43,24 @@ export interface GeoInfo {
   longitude?: number;
 }
 
+export interface PoolProxy {
+  id: string;
+  label: string;
+  raw: string;
+  note: string;
+  last_ip: string | null;
+  last_country: string | null;
+  last_cc: string | null;
+  last_tz: string | null;
+  last_ok: boolean | null;
+  checked_at: number | null;
+}
+
+export interface Group {
+  name: string;
+  count: number;
+}
+
 // In the Tauri production webview the app loads from tauri://localhost, where a
 // relative "/api" has no dev proxy to ride on — so always target the control
 // service's absolute localhost URL. The API enables permissive CORS, so this
@@ -78,7 +96,7 @@ export const api = {
   get: (id: string) => xfetch(`${BASE}/profiles/${id}`).then((r) => j<Profile>(r)),
 
   create: (body: {
-    name: string;
+    name?: string;
     os: string;
     proxy?: string | null;
     group?: string;
@@ -125,4 +143,37 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(profiles),
     }).then((r) => j<any[]>(r)),
+
+  // auto-name
+  nextName: () => xfetch(`${BASE}/next-name`).then((r) => j<{ name: string }>(r)),
+
+  // groups
+  groups: () => xfetch(`${BASE}/groups`).then((r) => j<Group[]>(r)),
+  addGroup: (name: string) =>
+    xfetch(`${BASE}/groups`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then((r) => j<Group[]>(r)),
+  deleteGroup: (name: string) =>
+    xfetch(`${BASE}/groups/${encodeURIComponent(name)}`, { method: "DELETE" }).then((r) => j<void>(r)),
+
+  // proxy pool
+  proxies: () => xfetch(`${BASE}/proxies`).then((r) => j<PoolProxy[]>(r)),
+  addProxy: (raw: string, label?: string, note = "") =>
+    xfetch(`${BASE}/proxies`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ raw, label, note }),
+    }).then((r) => j<PoolProxy>(r)),
+  updateProxy: (id: string, body: Partial<Pick<PoolProxy, "label" | "raw" | "note">>) =>
+    xfetch(`${BASE}/proxies/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => j<PoolProxy>(r)),
+  deleteProxy: (id: string) =>
+    xfetch(`${BASE}/proxies/${id}`, { method: "DELETE" }).then((r) => j<void>(r)),
+  checkPoolProxy: (id: string) =>
+    xfetch(`${BASE}/proxies/${id}/check`, { method: "POST" }).then((r) => j<PoolProxy>(r)),
 };

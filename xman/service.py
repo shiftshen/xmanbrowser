@@ -45,12 +45,28 @@ app.add_middleware(
 # ---------- schemas ----------
 
 class CreateProfile(BaseModel):
-    name: str
+    name: Optional[str] = None  # auto-generated (xman01, …) when omitted
     os: str = "macos"
     proxy: Optional[str] = None
     group: str = "default"
     note: str = ""
     seed: Optional[int] = None
+
+
+class ProxyIn(BaseModel):
+    raw: str
+    label: Optional[str] = None
+    note: str = ""
+
+
+class ProxyPatch(BaseModel):
+    raw: Optional[str] = None
+    label: Optional[str] = None
+    note: Optional[str] = None
+
+
+class GroupIn(BaseModel):
+    name: str
 
 
 class UpdateProfile(BaseModel):
@@ -175,7 +191,85 @@ def stop_all():
     return {"stopped": manager.stop_all()}
 
 
-# ---------- proxy ----------
+# ---------- auto-name & groups ----------
+
+@app.get("/api/next-name")
+def next_name():
+    return {"name": store.next_profile_name()}
+
+
+@app.get("/api/groups")
+def groups():
+    return store.list_groups()
+
+
+@app.post("/api/groups", status_code=201)
+def add_group(body: GroupIn):
+    store.add_group(body.name.strip())
+    return store.list_groups()
+
+
+@app.delete("/api/groups/{name}", status_code=204)
+def delete_group(name: str):
+    try:
+        store.delete_group(name)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------- proxy pool ----------
+
+@app.get("/api/proxies")
+def list_proxies():
+    return store.list_proxies()
+
+
+@app.post("/api/proxies", status_code=201)
+def add_proxy(body: ProxyIn):
+    try:
+        return store.add_proxy(body.raw, label=body.label, note=body.note)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.patch("/api/proxies/{pid}")
+def patch_proxy(pid: str, body: ProxyPatch):
+    try:
+        return store.update_proxy(
+            pid,
+            raw=body.raw if body.raw is not None else ...,
+            label=body.label if body.label is not None else ...,
+            note=body.note if body.note is not None else ...,
+        )
+    except KeyError:
+        raise HTTPException(404, "proxy not found")
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/proxies/{pid}", status_code=204)
+def delete_proxy(pid: str):
+    try:
+        store.delete_proxy(pid)
+    except KeyError:
+        raise HTTPException(404, "proxy not found")
+
+
+@app.post("/api/proxies/{pid}/check")
+def check_pool_proxy(pid: str):
+    try:
+        p = store.get_proxy(pid)
+    except KeyError:
+        raise HTTPException(404, "proxy not found")
+    try:
+        geo = check_and_locate(Proxy.parse(p["raw"]))
+        return store.record_proxy_check(pid, geo)
+    except Exception as e:
+        store.record_proxy_check(pid, None)
+        raise HTTPException(400, f"proxy check failed: {e}")
+
+
+# ---------- ad-hoc proxy check (not in pool) ----------
 
 @app.get("/api/proxy/check")
 def proxy_check(proxy: str):

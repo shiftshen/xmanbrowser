@@ -30,6 +30,25 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at   REAL NOT NULL,
     updated_at   REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS proxies (
+    id           TEXT PRIMARY KEY,
+    label        TEXT NOT NULL UNIQUE,
+    raw          TEXT NOT NULL,
+    note         TEXT NOT NULL DEFAULT '',
+    last_ip      TEXT,
+    last_country TEXT,
+    last_cc      TEXT,
+    last_tz      TEXT,
+    last_ok      INTEGER,               -- 1 ok / 0 fail / NULL never checked
+    checked_at   REAL,
+    created_at   REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+    name         TEXT PRIMARY KEY,
+    created_at   REAL NOT NULL
+);
 """
 
 
@@ -102,7 +121,7 @@ def _insert(prof: Profile) -> None:
 
 
 def create(
-    name: str,
+    name: Optional[str] = None,
     *,
     os_name: str = "macos",
     proxy_raw: Optional[str] = None,
@@ -112,11 +131,28 @@ def create(
 ) -> Profile:
     if proxy_raw:
         Proxy.parse(proxy_raw)  # validate
+    name = name or next_profile_name()
     spec = generate_spec(os_name, seed=seed)
     prof = Profile(id=uuid.uuid4().hex[:12], name=name, fingerprint=spec,
                    proxy_raw=proxy_raw, group=group, note=note)
     _insert(prof)
+    _ensure_group(group)
     return prof
+
+
+def next_profile_name(prefix: str = "xman") -> str:
+    """Next free auto name like xman01, xman02 … (zero-padded to 2+ digits)."""
+    import re
+    names = {p.name for p in all_profiles()}
+    pat = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    used = [int(m.group(1)) for n in names if (m := pat.match(n))]
+    nxt = (max(used) + 1) if used else 1
+    width = max(2, len(str(nxt)))
+    cand = f"{prefix}{nxt:0{width}d}"
+    while cand in names:  # guard against gaps/collisions
+        nxt += 1
+        cand = f"{prefix}{nxt:0{max(2, len(str(nxt))) }d}"
+    return cand
 
 
 def get(name_or_id: str) -> Profile:
@@ -212,4 +248,134 @@ def import_profile(d: dict, *, new_id: bool = True, rename_on_conflict: bool = T
             i += 1
             prof.name = f"{base}-{i}"
     _insert(prof)
+    _ensure_group(prof.group)
     return prof
+
+
+# ---------------------------------------------------------------------------
+# Groups
+# ---------------------------------------------------------------------------
+
+def _ensure_group(name: str) -> None:
+    if not name:
+        return
+    with _conn() as c:
+        c.execute("INSERT OR IGNORE INTO groups (name, created_at) VALUES (?, ?)",
+                  (name, time.time()))
+
+
+def list_groups() -> list[dict]:
+    """Groups with their profile counts. 'default' is always present."""
+    _ensure_group("default")
+    with _conn() as c:
+        rows = c.execute("SELECT name FROM groups ORDER BY name").fetchall()
+        counts = dict(c.execute("SELECT grp, COUNT(*) FROM profiles GROUP BY grp").fetchall())
+    return [{"name": r["name"], "count": counts.get(r["name"], 0)} for r in rows]
+
+
+def add_group(name: str) -> None:
+    _ensure_group(name)
+
+
+def delete_group(name: str) -> None:
+    """Remove a group; its profiles fall back to 'default'."""
+    if name == "default":
+        raise ValueError("cannot delete the default group")
+    with _conn() as c:
+        c.execute("UPDATE profiles SET grp='default' WHERE grp=?", (name,))
+        c.execute("DELETE FROM groups WHERE name=?", (name,))
+
+
+# ---------------------------------------------------------------------------
+# Proxy pool
+# ---------------------------------------------------------------------------
+
+def _proxy_row(r: sqlite3.Row) -> dict:
+    return {
+        "id": r["id"],
+        "label": r["label"],
+        "raw": r["raw"],
+        "note": r["note"],
+        "last_ip": r["last_ip"],
+        "last_country": r["last_country"],
+        "last_cc": r["last_cc"],
+        "last_tz": r["last_tz"],
+        "last_ok": None if r["last_ok"] is None else bool(r["last_ok"]),
+        "checked_at": r["checked_at"],
+    }
+
+
+def list_proxies() -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM proxies ORDER BY created_at").fetchall()
+    return [_proxy_row(r) for r in rows]
+
+
+def get_proxy(pid: str) -> dict:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM proxies WHERE id=? OR label=?", (pid, pid)).fetchone()
+    if not r:
+        raise KeyError(f"proxy not found: {pid}")
+    return _proxy_row(r)
+
+
+def add_proxy(raw: str, *, label: Optional[str] = None, note: str = "") -> dict:
+    Proxy.parse(raw)  # validate
+    label = label or _next_proxy_label()
+    pid = uuid.uuid4().hex[:12]
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO proxies (id,label,raw,note,created_at) VALUES (?,?,?,?,?)",
+            (pid, label, raw, note, time.time()),
+        )
+    return get_proxy(pid)
+
+
+def _next_proxy_label(prefix: str = "proxy") -> str:
+    import re
+    labels = {p["label"] for p in list_proxies()}
+    pat = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    used = [int(m.group(1)) for n in labels if (m := pat.match(n))]
+    nxt = (max(used) + 1) if used else 1
+    return f"{prefix}{nxt:02d}"
+
+
+def update_proxy(pid: str, *, label=..., raw=..., note=...) -> dict:
+    p = get_proxy(pid)
+    fields, args = [], []
+    if label is not ...:
+        fields.append("label=?"); args.append(label)
+    if raw is not ...:
+        Proxy.parse(raw)
+        fields.append("raw=?"); args.append(raw)
+    if note is not ...:
+        fields.append("note=?"); args.append(note)
+    if fields:
+        args.append(p["id"])
+        with _conn() as c:
+            c.execute(f"UPDATE proxies SET {','.join(fields)} WHERE id=?", args)
+    return get_proxy(p["id"])
+
+
+def delete_proxy(pid: str) -> None:
+    p = get_proxy(pid)
+    with _conn() as c:
+        c.execute("DELETE FROM proxies WHERE id=?", (p["id"],))
+
+
+def record_proxy_check(pid: str, geo) -> dict:
+    """Persist the latest health-check result (geo is a proxy.GeoInfo or None)."""
+    p = get_proxy(pid)
+    with _conn() as c:
+        if geo is None:
+            c.execute(
+                "UPDATE proxies SET last_ok=0, checked_at=? WHERE id=?",
+                (time.time(), p["id"]),
+            )
+        else:
+            c.execute(
+                "UPDATE proxies SET last_ok=1, last_ip=?, last_country=?, last_cc=?, "
+                "last_tz=?, checked_at=? WHERE id=?",
+                (geo.ip, geo.country, geo.country_code, geo.timezone, time.time(), p["id"]),
+            )
+    return get_proxy(p["id"])
