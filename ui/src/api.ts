@@ -30,6 +30,7 @@ export interface Profile {
   os: string;
   fingerprint: FingerprintSummary;
   running: boolean;
+  engine: string;
   user_data_dir?: string;
 }
 
@@ -113,6 +114,7 @@ export const api = {
   create: (body: {
     name?: string;
     os: string;
+    engine?: string;
     proxy?: string | null;
     group?: string;
     note?: string;

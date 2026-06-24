@@ -47,6 +47,7 @@ app.add_middleware(
 class CreateProfile(BaseModel):
     name: Optional[str] = None  # auto-generated (xman01, …) when omitted
     os: str = "macos"
+    engine: str = "camoufox"    # camoufox (Firefox) | chromium (patchright)
     proxy: Optional[str] = None
     group: str = "default"
     note: str = ""
@@ -87,6 +88,7 @@ def _view(prof) -> dict:
     return {
         **{k: v for k, v in prof.to_dict().items() if k != "fingerprint"},
         "os": prof.fingerprint.os,
+        "engine": prof.fingerprint.engine,
         "fingerprint": fp.summary(prof.fingerprint),
         "running": manager.is_running(prof.id),
     }
@@ -107,7 +109,7 @@ def list_profiles(group: Optional[str] = None, search: Optional[str] = None):
 @app.post("/api/profiles", status_code=201)
 def create_profile(body: CreateProfile):
     try:
-        prof = store.create(body.name, os_name=body.os, proxy_raw=body.proxy,
+        prof = store.create(body.name, os_name=body.os, engine=body.engine, proxy_raw=body.proxy,
                             group=body.group, note=body.note, seed=body.seed)
     except Exception as e:
         raise HTTPException(400, str(e))

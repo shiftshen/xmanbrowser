@@ -72,6 +72,24 @@ def test_unsupported_os():
         fp.generate_spec("solaris")
 
 
+def test_chromium_engine_spec():
+    s = fp.generate_spec("macos", engine="chromium", seed=1)
+    assert s.engine == "chromium"
+    c = s.config
+    assert "Chrome" in c["userAgent"] and "Firefox" not in c["userAgent"]
+    assert c["platform"] == "MacIntel"
+    assert isinstance(c["screen"], list) and len(c["screen"]) == 2
+    sm = fp.summary(s)
+    assert sm["engine"] == "chromium" and "Chrome" in sm["userAgent"]
+    # round-trips through persistence with the engine preserved
+    assert fp.FingerprintSpec.from_dict(s.to_dict()).engine == "chromium"
+
+
+def test_unsupported_engine():
+    with pytest.raises(ValueError):
+        fp.generate_spec("macos", engine="webkit")
+
+
 # ---------- profile persistence + isolation ----------
 
 def test_profile_save_load_and_isolation(monkeypatch):

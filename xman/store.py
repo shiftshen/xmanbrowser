@@ -158,6 +158,7 @@ def create(
     name: Optional[str] = None,
     *,
     os_name: str = "macos",
+    engine: str = "camoufox",
     proxy_raw: Optional[str] = None,
     group: str = "default",
     note: str = "",
@@ -166,7 +167,7 @@ def create(
     if proxy_raw:
         Proxy.parse(proxy_raw)  # validate
     name = name or next_profile_name()
-    spec = generate_spec(os_name, seed=seed)
+    spec = generate_spec(os_name, engine=engine, seed=seed)
     prof = Profile(id=uuid.uuid4().hex[:12], name=name, fingerprint=spec,
                    proxy_raw=proxy_raw, group=group, note=note)
     _insert(prof)
@@ -240,7 +241,7 @@ def update(name_or_id: str, *, proxy_raw=..., group=..., note=..., name=...) -> 
 def clone(name_or_id: str, new_name: str, *, regenerate_fingerprint: bool = True) -> Profile:
     src = get(name_or_id)
     if regenerate_fingerprint:
-        spec = generate_spec(src.fingerprint.os)
+        spec = generate_spec(src.fingerprint.os, engine=src.fingerprint.engine)
     else:
         spec = src.fingerprint
     prof = Profile(id=uuid.uuid4().hex[:12], name=new_name, fingerprint=spec,

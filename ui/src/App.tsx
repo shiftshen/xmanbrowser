@@ -297,6 +297,7 @@ function ProfileCard(props: {
       <div className="head">
         <div className="avatar" style={{ background: avatarColor(p.name) }}>{initials(p.name)}</div>
         <span className="title">{p.name}</span>
+        <span className="chip" title={p.engine === "chromium" ? "Chromium (patchright)" : "Camoufox (Firefox)"}>{p.engine === "chromium" ? "Chrome" : "Firefox"}</span>
         <span className="grow" />
         {p.running && <span className="chip run">running</span>}
       </div>
@@ -472,6 +473,7 @@ function ProfileModal(props: {
   const isNew = !p;
   const [name, setName] = useState(p?.name ?? "");
   const [os, setOs] = useState(p?.os ?? "macos");
+  const [engine, setEngine] = useState(p?.engine ?? "camoufox");
   const [group, setGroup] = useState(p?.group ?? (props.defaultGroup || "default"));
   const [newGroup, setNewGroup] = useState("");
   const [note, setNote] = useState(p?.note ?? "");
@@ -511,7 +513,7 @@ function ProfileModal(props: {
     try {
       if (newGroup.trim()) await api.addGroup(newGroup.trim());
       if (isNew) {
-        await api.create({ name: name.trim() || undefined, os, proxy: resolvedProxy(), group: grp, note });
+        await api.create({ name: name.trim() || undefined, os, engine, proxy: resolvedProxy(), group: grp, note });
         props.onSaved(`created ${name}`);
       } else {
         await api.update(p!.id, { name: name.trim(), proxy: resolvedProxy() ?? "", group: grp, note });
@@ -532,14 +534,30 @@ function ProfileModal(props: {
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="xman01" />
         </div>
 
-        <div className="field">
-          <label>Operating system {isNew ? <span className="hint">· drives the fingerprint</span> : <span className="hint">· fixed after creation</span>}</label>
-          <select value={os} onChange={(e) => setOs(e.target.value)} disabled={!isNew}>
-            <option value="macos">macOS</option>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-          </select>
+        <div className="inline">
+          <div className="field" style={{ flex: 1 }}>
+            <label>Operating system</label>
+            <select value={os} onChange={(e) => setOs(e.target.value)} disabled={!isNew}>
+              <option value="macos">macOS</option>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Engine {!isNew && <span className="hint">· fixed</span>}</label>
+            <select value={engine} onChange={(e) => setEngine(e.target.value)} disabled={!isNew}>
+              <option value="camoufox">Camoufox (unique fingerprint)</option>
+              <option value="chromium">Chromium (real Chrome, stealth)</option>
+            </select>
+          </div>
         </div>
+        {isNew && (
+          <div className="hint" style={{ marginTop: -8, marginBottom: 14 }}>
+            {engine === "camoufox"
+              ? "Firefox-based, engine-level spoofing — each profile gets a unique WebGL/canvas/font fingerprint."
+              : "Real Chrome via patchright (no automation tells). Profiles share the machine's hardware fingerprint; differ by UA / cookies / proxy."}
+          </div>
+        )}
 
         <div className="field">
           <label>Group</label>

@@ -17,6 +17,7 @@ pyinstaller --noconfirm --clean --onefile \
   --collect-all apify_fingerprint_datapoints \
   --collect-all language_tags \
   --collect-all playwright \
+  --collect-all patchright \
   --collect-all uvicorn \
   --collect-submodules fastapi \
   --hidden-import xman.service \

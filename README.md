@@ -45,6 +45,23 @@ npm run tauri build        # produces a .dmg under src-tauri/target/release/bund
 The Tauri shell launches the Python control service on startup and stops it on
 exit. The UI (port 5191) talks to the API (port 8723) — both bound to localhost.
 
+## Engines
+
+XMan supports two browser engines per profile (pick one at creation):
+
+| Engine | Based on | Stealth | Per-profile fingerprint | Use when |
+|--------|----------|---------|--------------------------|----------|
+| **Camoufox** (default) | Firefox | engine-level (C++) spoofing of WebGL/canvas/fonts/navigator | **unique** synthetic fingerprint, stable per profile | you need each profile to look like a *different device* |
+| **Chromium** | real Chrome via [patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright) | automation-leak patched (`navigator.webdriver` hidden, no CDP tells) | UA / locale / viewport / timezone differ; **deep hardware fingerprint (cores, GPU, canvas) is the real machine's, shared across Chromium profiles** | a site demands a real Chrome and you mainly need isolation + clean automation |
+
+Both engines get their own user-data-dir (cookie/storage isolation), proxy
+binding, and timezone/locale that follow the proxy exit IP.
+
+> Honest limitation: Playwright/patchright can't change `hardwareConcurrency`,
+> `deviceMemory`, or the GPU/canvas fingerprint without detectable JS overrides,
+> so Chromium profiles on the same machine share those. For *unique* fingerprints
+> use Camoufox; use Chromium when Chrome-ness and bot-check evasion matter more.
+
 ## How it works
 
 - **Fingerprint identity is generated once and persisted.** Camoufox's config

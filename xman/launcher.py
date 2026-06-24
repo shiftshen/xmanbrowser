@@ -1,8 +1,13 @@
-"""Launch a Camoufox instance for a profile: stable fingerprint + proxy + geoip.
+"""Launch a browser for a profile — Camoufox (Firefox) or Chromium (patchright).
 
-Stable identity comes from the persisted `config`; geo surfaces (timezone,
-locale, WebRTC IP, geolocation) are resolved at launch from the proxy exit IP
-via `geoip=True`, keeping them consistent with the egress location.
+Both paths give per-profile isolation (own user-data-dir), proxy binding, and
+geo that follows the proxy exit IP. They return an object usable as
+`with launch(profile) as ctx:` where `ctx` exposes `new_page()` / `pages`.
+
+- camoufox: engine-level fingerprint spoofing (the persisted Camoufox config).
+- chromium: real Chrome via patchright (automation-leak-patched); identity set
+  through Playwright context options (UA/locale/viewport/timezone) — no
+  detectable JS overrides. Best when a site demands a Chrome fingerprint.
 """
 from __future__ import annotations
 
@@ -10,6 +15,8 @@ from typing import Any, Dict, Optional
 
 from .profile import Profile
 
+
+# ----------------------------- Camoufox -----------------------------
 
 def build_launch_options(
     profile: Profile,
@@ -21,44 +28,123 @@ def build_launch_options(
     """Assemble the kwargs passed to Camoufox for this profile."""
     spec = profile.fingerprint
     opts: Dict[str, Any] = {
-        # Replay the baked, stable identity. Camoufox only fills *absent* keys,
-        # so every launch reproduces this fingerprint byte-for-byte.
         "config": dict(spec.config),
         "os": spec.os,
         "headless": headless,
-        # Per-profile isolation: own user-data-dir => own cookies/storage/cache.
         "persistent_context": True,
         "user_data_dir": str(profile.user_data_dir),
         "humanize": humanize,
         "block_webrtc": block_webrtc,
-        # We intentionally replay a pinned navigator/screen/webgl config to keep
-        # the per-profile identity stable. That's the whole point of a fingerprint
-        # browser, so acknowledge Camoufox's "manually setting properties" warning.
         "i_know_what_im_doing": True,
     }
-
     proxy = profile.proxy
     if proxy:
         opts["proxy"] = proxy.to_camoufox()
-        # geoip=True => timezone/locale/geolocation (and WebRTC IP if not blocked)
-        # follow the proxy's exit IP. This is the consistency guarantee.
         opts["geoip"] = True
-
-    # Keep WebGL2 flag consistent with the pinned WebGL fingerprint.
     if not spec.webgl2_enabled:
         opts.setdefault("firefox_user_prefs", {})["webgl.enable-webgl2"] = False
-
     return opts
 
 
-def launch(profile: Profile, *, headless: bool = False, **kw):
-    """Open the browser and return the Camoufox context manager.
-
-    Usage:
-        with launch(profile) as browser:
-            page = browser.new_page(); page.goto("https://browserleaks.com")
-    """
+def _launch_camoufox(profile: Profile, *, headless: bool, **kw):
     from camoufox.sync_api import Camoufox
 
     opts = build_launch_options(profile, headless=headless, **kw)
     return Camoufox(**opts)
+
+
+# ----------------------------- Chromium (patchright) -----------------------------
+
+def _ensure_chromium() -> None:
+    """Download the patchright Chromium browser on first use if it's missing."""
+    try:
+        from patchright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            path = p.chromium.executable_path
+        import os
+        if path and os.path.exists(path):
+            return
+    except Exception:
+        pass
+    try:
+        print("[xman] downloading Chromium engine (one-time)…", flush=True)
+        import subprocess, sys
+        subprocess.run([sys.executable, "-m", "patchright", "install", "chromium"],
+                       check=False)
+    except Exception as e:  # noqa: BLE001
+        print(f"[xman] chromium fetch failed: {e}", flush=True)
+
+
+class _ChromiumContext:
+    """Context-manager wrapper so the runner can `with launch(...) as ctx:`.
+
+    Mirrors the Camoufox persistent-context interface (new_page / pages) and
+    tears down both the browser context and the Playwright driver on exit.
+    """
+
+    def __init__(self, profile: Profile, headless: bool):
+        self._profile = profile
+        self._headless = headless
+        self._pw = None
+        self._ctx = None
+
+    def __enter__(self):
+        _ensure_chromium()
+        from patchright.sync_api import sync_playwright
+
+        prof = self._profile
+        c = prof.fingerprint.config
+        sw, sh = (c.get("screen") or [1280, 800])
+        vw, vh = (c.get("viewport") or [sw, sh])
+
+        kw: Dict[str, Any] = {
+            "user_data_dir": str(prof.user_data_dir),
+            "headless": self._headless,
+            "user_agent": c.get("userAgent"),
+            "locale": c.get("language") or "en-US",
+            "viewport": {"width": int(vw), "height": int(vh)},
+            "screen": {"width": int(sw), "height": int(sh)},
+            "color_scheme": c.get("colorScheme") or "light",
+            "ignore_default_args": ["--enable-automation"],
+        }
+
+        proxy = prof.proxy
+        if proxy:
+            kw["proxy"] = proxy.to_camoufox()
+            # Geo follows the proxy exit IP (timezone + geolocation), like Camoufox geoip.
+            try:
+                from .proxy import check_and_locate
+                geo = check_and_locate(proxy)
+                if geo.timezone:
+                    kw["timezone_id"] = geo.timezone
+                if geo.latitude is not None and geo.longitude is not None:
+                    kw["geolocation"] = {"latitude": geo.latitude, "longitude": geo.longitude}
+                    kw["permissions"] = ["geolocation"]
+            except Exception:
+                pass
+
+        self._pw = sync_playwright().start()
+        self._ctx = self._pw.chromium.launch_persistent_context(**kw)
+        return self._ctx
+
+    def __exit__(self, *exc):
+        try:
+            if self._ctx:
+                self._ctx.close()
+        finally:
+            if self._pw:
+                self._pw.stop()
+        return False
+
+
+# ----------------------------- dispatch -----------------------------
+
+def launch(profile: Profile, *, headless: bool = False, **kw):
+    """Open the browser for `profile`, dispatching on its engine.
+
+        with launch(profile) as ctx:
+            page = ctx.new_page(); page.goto("https://browserleaks.com")
+    """
+    if profile.fingerprint.engine == "chromium":
+        return _ChromiumContext(profile, headless)
+    return _launch_camoufox(profile, headless=headless, **kw)

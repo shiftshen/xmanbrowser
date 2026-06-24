@@ -34,13 +34,23 @@ _SCREENS = {
 }
 
 
+SUPPORTED_ENGINES = ("camoufox", "chromium")
+
+
 @dataclass
 class FingerprintSpec:
-    """A persisted, replayable fingerprint identity for one profile."""
+    """A persisted, replayable fingerprint identity for one profile.
+
+    `engine` selects the browser backend:
+      - camoufox: `config` is a Camoufox property dict (engine-level spoofing).
+      - chromium: `config` holds Playwright context options (ua/locale/viewport/…)
+        applied to a patchright-driven Chromium for clean automation stealth.
+    """
 
     os: str
-    # Fully-resolved Camoufox config dict (the stable identity).
+    # Engine-specific identity dict (see `engine`).
     config: Dict[str, Any]
+    engine: str = "camoufox"
     # Firefox version the fingerprint was generated against (for traceability).
     ff_version: str = ""
     # Whether WebGL2 should be enabled (kept consistent with the pinned WebGL fp).
@@ -50,6 +60,7 @@ class FingerprintSpec:
     def to_dict(self) -> dict:
         return {
             "os": self.os,
+            "engine": self.engine,
             "ff_version": self.ff_version,
             "webgl2_enabled": self.webgl2_enabled,
             "notes": self.notes,
@@ -61,6 +72,7 @@ class FingerprintSpec:
         return cls(
             os=d["os"],
             config=d["config"],
+            engine=d.get("engine", "camoufox"),
             ff_version=d.get("ff_version", ""),
             webgl2_enabled=d.get("webgl2_enabled", True),
             notes=d.get("notes", ""),
@@ -114,15 +126,46 @@ def _generate(os: str, screen: Optional[tuple[int, int]]) -> FingerprintSpec:
     )
 
 
+def _generate_chromium(os: str, screen: Optional[tuple[int, int]]) -> FingerprintSpec:
+    """Generate a coherent Chrome fingerprint for the patchright/Chromium engine.
+
+    Stores Playwright context options — the surfaces that can be set WITHOUT
+    detectable JS overrides (UA, platform, locale, languages, viewport, screen,
+    hardware). Timezone/locale still auto-follow the proxy at launch via geoip.
+    """
+    from browserforge.fingerprints import FingerprintGenerator
+
+    fg = FingerprintGenerator()
+    fp = fg.generate(browser="chrome", os=os)
+    nav = fp.navigator
+    sc = fp.screen
+    w, h = (screen or (sc.width, sc.height))
+    cfg: Dict[str, Any] = {
+        "userAgent": nav.userAgent,
+        "platform": nav.platform,
+        "language": nav.language,
+        "languages": list(nav.languages or [nav.language]),
+        "hardwareConcurrency": nav.hardwareConcurrency,
+        "deviceMemory": getattr(nav, "deviceMemory", None),
+        "screen": [w, h],
+        "viewport": [w, max(600, h - 120)],
+        "colorScheme": "light",
+    }
+    return FingerprintSpec(
+        os=os, config=cfg, engine="chromium",
+        notes=f'chromium {os} {w}x{h}',
+    )
+
+
 def generate_spec(
     os: str = "macos",
     *,
+    engine: str = "camoufox",
     screen: Optional[tuple[int, int]] = None,
     seed: Optional[int] = None,
     _max_attempts: int = 8,
 ) -> FingerprintSpec:
-    """Generate one internally-consistent fingerprint and bake it into a stable
-    Camoufox config dict.
+    """Generate one internally-consistent fingerprint for the chosen engine.
 
     `seed` makes generation reproducible (useful for tests / cloning); omit it
     for a fresh random identity. BrowserForge occasionally rejects an over-
@@ -130,6 +173,24 @@ def generate_spec(
     """
     if os not in SUPPORTED_OS:
         raise ValueError(f"unsupported os {os!r}; choose from {SUPPORTED_OS}")
+    if engine not in SUPPORTED_ENGINES:
+        raise ValueError(f"unsupported engine {engine!r}; choose from {SUPPORTED_ENGINES}")
+
+    if engine == "chromium":
+        if seed is not None:
+            import random as _r
+            st = _r.getstate()
+            try:
+                _r.seed(seed)
+                try:
+                    import numpy as _np
+                    _np.random.seed(seed % (2 ** 32))
+                except Exception:
+                    pass
+                return _generate_chromium(os, screen)
+            finally:
+                _r.setstate(st)
+        return _generate_chromium(os, screen)
 
     if seed is None:
         return _attempt(os, screen, _max_attempts)
@@ -172,8 +233,23 @@ def _attempt(os: str, screen, attempts: int) -> FingerprintSpec:
 def summary(spec: FingerprintSpec) -> Dict[str, Any]:
     """Human-readable highlights of a fingerprint for CLI/UI display."""
     c = spec.config
+    if spec.engine == "chromium":
+        sc = c.get("screen") or [None, None]
+        return {
+            "os": spec.os,
+            "engine": "chromium",
+            "userAgent": c.get("userAgent"),
+            "platform": c.get("platform"),
+            "hardwareConcurrency": c.get("hardwareConcurrency"),
+            "screen": f"{sc[0]}x{sc[1]}",
+            "webglVendor": "Chromium (real GPU)",
+            "webglRenderer": "patchright stealth",
+            "canvasOffset": None,
+            "fontSpacingSeed": None,
+        }
     return {
         "os": spec.os,
+        "engine": "camoufox",
         "userAgent": c.get("navigator.userAgent"),
         "platform": c.get("navigator.platform"),
         "hardwareConcurrency": c.get("navigator.hardwareConcurrency"),
