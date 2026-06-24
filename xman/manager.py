@@ -81,7 +81,12 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
     if profile_id in d:
         return {"profile_id": profile_id, "pid": d[profile_id]["pid"], "already_running": True}
 
-    cmd = [sys.executable, "-m", "xman.runner", profile_id, "--url", url]
+    # In a PyInstaller-frozen sidecar there is no `python -m`; re-invoke the
+    # frozen exe with the "runner" subcommand instead.
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "runner", profile_id, "--url", url]
+    else:
+        cmd = [sys.executable, "-m", "xman.runner", profile_id, "--url", url]
     if headless:
         cmd.append("--headless")
     # Detach into its own process group so terminating the API won't kill browsers.

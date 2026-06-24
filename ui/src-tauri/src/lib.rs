@@ -12,8 +12,26 @@ use tauri::{Manager, RunEvent};
 struct Backend(Mutex<Option<Child>>);
 
 fn spawn_backend() -> Option<Child> {
-    // Resolve the dev virtualenv next to the Python package. CARGO_MANIFEST_DIR
-    // is .../app/ui/src-tauri at compile time; the app root is two levels up.
+    // 1. Bundled sidecar (production): a standalone backend executable placed
+    //    next to the app binary via Tauri externalBin. No Python needed.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let name = if cfg!(windows) { "xman-server.exe" } else { "xman-server" };
+            let sidecar = dir.join(name);
+            if sidecar.exists() {
+                match Command::new(&sidecar).spawn() {
+                    Ok(child) => {
+                        log::info!("started bundled sidecar (pid {})", child.id());
+                        return Some(child);
+                    }
+                    Err(e) => log::error!("sidecar spawn failed: {e}"),
+                }
+            }
+        }
+    }
+
+    // 2. Dev virtualenv next to the Python package. CARGO_MANIFEST_DIR is
+    //    .../app/ui/src-tauri at compile time; the app root is two levels up.
     let manifest = env!("CARGO_MANIFEST_DIR");
     let app_dir = std::path::Path::new(manifest)
         .parent()

@@ -17,3 +17,8 @@ node_modules/
 ui/dist/
 ui/src-tauri/target/
 ui/src-tauri/gen/
+
+# PyInstaller (sidecar) build artifacts
+/build/
+/dist/
+*.spec
