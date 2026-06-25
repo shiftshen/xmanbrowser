@@ -29,7 +29,13 @@ echo "[1/5] collecting every Mach-O in the bundle…"
 MACHO=$(mktemp)
 find "$APP" -type f | while IFS= read -r f; do
   case "$f" in *.py|*.pyc|*.txt|*.json|*.yml|*.yaml|*.dat|*.pem|*.html|*.css|*.js) continue;; esac
-  case "$f" in */camoufox-data/*) continue;; esac
+  # Skip the MAIN executables of nested .app bundles — codesign refuses to sign a
+  # bundle's main exe standalone (step 3's --deep signs those). Loose dylibs in
+  # the browser (e.g. gmp-clearkey/*.dylib in Resources) MUST be signed here, as
+  # --deep won't recurse into arbitrary Resources/ subdirs.
+  case "$f" in */Camoufox.app/Contents/MacOS/camoufox) continue;; esac
+  case "$f" in */plugin-container.app/Contents/MacOS/plugin-container) continue;; esac
+  case "$f" in */media-plugin-helper.app/Contents/MacOS/media-plugin-helper) continue;; esac
   if file "$f" 2>/dev/null | grep -q "Mach-O"; then echo "$f"; fi
 done > "$MACHO"
 echo "    $(wc -l < "$MACHO") Mach-O files"
