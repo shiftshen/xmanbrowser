@@ -11,6 +11,23 @@ use tauri::{Manager, RunEvent};
 
 struct Backend(Mutex<Option<Child>>);
 
+/// Build a Command that never flashes a console window. The PyInstaller sidecar
+/// is a console subsystem exe, so on Windows spawning it would pop a black cmd
+/// window next to the app; CREATE_NO_WINDOW suppresses it (no-op elsewhere).
+fn hidden_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+    let cmd = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut cmd = cmd;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        return cmd;
+    }
+    #[cfg(not(windows))]
+    cmd
+}
+
 fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
     // 1. Bundled sidecar (production): a PyInstaller onedir backend shipped under
     //    the app's resources (sidecar/xman-server + sidecar/_internal/). onedir
@@ -30,7 +47,7 @@ fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
                     }
                 }
             }
-            match Command::new(&sidecar).spawn() {
+            match hidden_command(&sidecar).spawn() {
                 Ok(child) => {
                     log::info!("started bundled sidecar (pid {})", child.id());
                     return Some(child);
@@ -56,7 +73,7 @@ fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
             dir.join(".venv").join("bin").join("python")
         };
         if py.exists() {
-            match Command::new(&py)
+            match hidden_command(&py)
                 .args(["-m", "xman.cli", "serve"])
                 .current_dir(dir)
                 .spawn()
@@ -71,7 +88,7 @@ fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
     }
 
     // Fallback: rely on `xman` being on PATH.
-    match Command::new("xman").arg("serve").spawn() {
+    match hidden_command("xman").arg("serve").spawn() {
         Ok(child) => {
             log::info!("started backend via PATH `xman serve` (pid {})", child.id());
             Some(child)
