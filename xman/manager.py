@@ -83,7 +83,8 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
 
     # In a PyInstaller-frozen sidecar there is no `python -m`; re-invoke the
     # frozen exe with the "runner" subcommand instead.
-    if getattr(sys, "frozen", False):
+    frozen = getattr(sys, "frozen", False)
+    if frozen:
         cmd = [sys.executable, "runner", profile_id, "--url", url]
     else:
         cmd = [sys.executable, "-m", "xman.runner", profile_id, "--url", url]
@@ -96,8 +97,17 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
         "stderr": subprocess.DEVNULL,
         "env": {**os.environ},
     }
+    # A frozen (PyInstaller onedir) re-invocation must run from the exe's own
+    # directory; otherwise Windows can't resolve the sidecar's _internal DLLs and
+    # the child dies with 0xc0000142 (STATUS_DLL_INIT_FAILED).
+    if frozen:
+        popen_kw["cwd"] = os.path.dirname(os.path.abspath(sys.executable))
     if os.name == "nt":
-        popen_kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        # New group so Ctrl-C on the API won't kill browsers; no console window
+        # (the sidecar is a console-subsystem exe — a window would flash).
+        flags = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        popen_kw["creationflags"] = flags
     else:
         popen_kw["start_new_session"] = True
     proc = subprocess.Popen(cmd, **popen_kw)
