@@ -181,10 +181,10 @@ export const api = {
 
   stop: (id: string) => xfetch(`${BASE}/profiles/${id}/stop`, { method: "POST" }).then((r) => j<{ stopped: boolean }>(r)),
 
-  batchLaunch: (ids: string[]) =>
+  batchLaunch: (ids: string[], url = "about:blank") =>
     xfetch(`${BASE}/batch/launch`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ids }),
+      body: JSON.stringify({ ids, url }),
     }).then((r) => j<any[]>(r)),
   batchStop: (ids: string[]) =>
     xfetch(`${BASE}/batch/stop`, {

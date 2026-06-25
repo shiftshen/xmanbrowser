@@ -17,6 +17,11 @@ const PROXY_OFFERS: { tier: string; logo: string; alt: string; sub: string; href
 // Affiliate CTA shown when a detection comes back dirty (→ buy clean proxies).
 const CLEAN_IP_CTA = PROXY_OFFERS[0]; // 711Proxy
 
+// Default page a profile opens to (instead of a blank tab). whoer.net instantly
+// shows the profile's IP/fingerprint/leak state — on-brand for a fingerprint
+// browser and a free, zero-setup home.
+const HOME_URL = "https://whoer.net/";
+
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
 function avatarColor(s: string) {
   let h = 0;
@@ -47,6 +52,12 @@ export function App() {
   const [detail, setDetail] = useState<Profile | null>(null);
   const [engineDl, setEngineDl] = useState<{ engine: string; profileId: string; url?: string } | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  // In-app confirm/prompt — Tauri's WKWebview ignores window.confirm/prompt, so
+  // native dialogs silently no-op (that's why Delete did nothing). Use modals.
+  const [confirmDlg, setConfirmDlg] = useState<{ msg: string; onYes: () => void } | null>(null);
+  const [promptDlg, setPromptDlg] = useState<{ msg: string; placeholder: string; onYes: (v: string) => void } | null>(null);
+  const askConfirm = (msg: string, onYes: () => void) => setConfirmDlg({ msg, onYes });
+  const askPrompt = (msg: string, onYes: (v: string) => void, placeholder = "") => setPromptDlg({ msg, placeholder, onYes });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = useCallback((msg: string, err = false) => {
@@ -118,7 +129,7 @@ export function App() {
   // modal (which downloads, then auto-launches) instead of silently failing.
   const launchProfile = async (p: Profile, url?: string) => {
     try {
-      const res = await api.launch(p.id, url);
+      const res = await api.launch(p.id, url ?? HOME_URL);
       if (res.engine_downloading) {
         setEngineDl({ engine: res.engine_downloading, profileId: p.id, url });
       } else {
@@ -151,9 +162,10 @@ export function App() {
   };
 
   const visible = profiles.filter((p) => !group || p.group === group);
-  const addGroup = async () => {
-    const n = prompt("New group name:");
-    if (n?.trim()) act(() => api.addGroup(n.trim()), "group added");
+  const addGroup = () => {
+    askPrompt("New group name:", (n) => {
+      if (n.trim()) act(() => api.addGroup(n.trim()), "group added");
+    }, "e.g. shop-accounts");
   };
 
   return (
@@ -223,7 +235,7 @@ export function App() {
                 return (
                   <>
                     {idle.length > 0 && (
-                      <button title={`Launch ${idle.length}`} onClick={() => act(() => api.batchLaunch(idle), `launching ${idle.length}`)}>▶ Launch all</button>
+                      <button title={`Launch ${idle.length}`} onClick={() => act(() => api.batchLaunch(idle, HOME_URL), `launching ${idle.length}`)}>▶ Launch all</button>
                     )}
                     {live.length > 0 && (
                       <button className="danger" title={`Stop ${live.length}`} onClick={() => act(() => api.batchStop(live), `stopping ${live.length}`)}>■ Stop all</button>
@@ -267,10 +279,10 @@ export function App() {
               onEdit={(p) => setEditingProxy(p)}
               onCheck={(p) => act(() => api.checkPoolProxy(p.id), "checked")}
               onToggle={(p) => act(() => api.setProxyEnabled(p.id, !p.enabled))}
-              onDelete={(p) => confirm(`Delete proxy "${p.label}"?`) && act(() => api.deleteProxy(p.id), "deleted")}
+              onDelete={(p) => askConfirm(`Delete proxy "${p.label}"?`, () => act(() => api.deleteProxy(p.id), "deleted"))}
               onAddProvider={() => setEditingProvider(true)}
               onRefreshProvider={(pv) => act(() => api.refreshProvider(pv.id), "refreshed from provider")}
-              onDeleteProvider={(pv) => confirm(`Delete provider "${pv.label}"?`) && act(() => api.deleteProvider(pv.id), "deleted")}
+              onDeleteProvider={(pv) => askConfirm(`Delete provider "${pv.label}"?`, () => act(() => api.deleteProvider(pv.id), "deleted"))}
             />
           ) : visible.length === 0 ? (
             <div className="empty">
@@ -288,7 +300,7 @@ export function App() {
                   onEdit={() => setEditing(p)}
                   onDetail={async () => setDetail(await api.get(p.id))}
                   onClone={() => act(() => api.clone(p.id, `${p.name}-copy`), "cloned")}
-                  onDelete={() => confirm(`Delete "${p.name}" and its data?`) && act(() => api.remove(p.id), "deleted")}
+                  onDelete={() => askConfirm(`Delete "${p.name}" and its data?`, () => act(() => api.remove(p.id), "deleted"))}
                 />
               ))}
             </div>
@@ -335,7 +347,7 @@ export function App() {
           onClose={() => setEngineDl(null)}
           onReady={async () => {
             const id = engineDl.profileId;
-            const url = engineDl.url;
+            const url = engineDl.url ?? HOME_URL;
             setEngineDl(null);
             try { await api.launch(id, url); flash("launched"); refresh(); }
             catch (e: any) { flash(e.message, true); }
@@ -343,6 +355,42 @@ export function App() {
         />
       )}
       {toast && <div className={`toast ${toast.err ? "err" : ""}`}>{toast.msg}</div>}
+
+      {confirmDlg && (
+        <div className="overlay" onClick={() => setConfirmDlg(null)}>
+          <div className="modal sm-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Confirm</h2>
+            <div className="desc">{confirmDlg.msg}</div>
+            <div className="foot">
+              <button onClick={() => setConfirmDlg(null)}>Cancel</button>
+              <button className="danger" onClick={() => { confirmDlg.onYes(); setConfirmDlg(null); }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promptDlg && <PromptModal {...promptDlg} onClose={() => setPromptDlg(null)} />}
+    </div>
+  );
+}
+
+function PromptModal(props: { msg: string; placeholder: string; onYes: (v: string) => void; onClose: () => void }) {
+  const [v, setV] = useState("");
+  const submit = () => { props.onYes(v); props.onClose(); };
+  return (
+    <div className="overlay" onClick={props.onClose}>
+      <div className="modal sm-modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{props.msg}</h2>
+        <div className="field">
+          <input autoFocus value={v} placeholder={props.placeholder}
+            onChange={(e) => setV(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") props.onClose(); }} />
+        </div>
+        <div className="foot">
+          <button onClick={props.onClose}>Cancel</button>
+          <button className="primary" onClick={submit}>OK</button>
+        </div>
+      </div>
     </div>
   );
 }
