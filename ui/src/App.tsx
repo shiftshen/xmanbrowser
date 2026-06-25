@@ -58,17 +58,6 @@ export function App() {
   const [promptDlg, setPromptDlg] = useState<{ msg: string; placeholder: string; onYes: (v: string) => void } | null>(null);
   const askConfirm = (msg: string, onYes: () => void) => setConfirmDlg({ msg, onYes });
   const askPrompt = (msg: string, onYes: (v: string) => void, placeholder = "") => setPromptDlg({ msg, placeholder, onYes });
-  // One-click environment detection (lives at the top level so it's reachable
-  // from the main Profiles page, not buried in the proxy tab).
-  const [detecting, setDetecting] = useState(false);
-  const [detResult, setDetResult] = useState<DetectResult | null>(null);
-  const [detErr, setDetErr] = useState<string | null>(null);
-  const runDetect = async () => {
-    setDetecting(true); setDetErr(null); setDetResult(null);
-    try { setDetResult(await api.detect()); }
-    catch (e: any) { setDetErr(e.message || "检测失败"); }
-    finally { setDetecting(false); }
-  };
   const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = useCallback((msg: string, err = false) => {
@@ -220,6 +209,17 @@ export function App() {
           <span className="count">{proxies.length}</span>
         </div>
 
+        {/* always-visible proxy affiliate — clean residential/ISP IPs */}
+        <div className="nav-aff">
+          <div className="nav-aff-title">获取干净代理</div>
+          {PROXY_OFFERS.map((o) => (
+            <a className="nav-aff-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" title={o.sub}>
+              <img src={o.logo} alt={o.alt} />
+              <span className="nav-aff-tag">{o.tier}</span>
+            </a>
+          ))}
+        </div>
+
         <div className="spacer" />
         <div className="api-pill">
           <span className={`dot ${online === null ? "wait" : online ? "ok" : "bad"}`} />
@@ -240,9 +240,6 @@ export function App() {
             <>
               <input className="search" placeholder="Search…" value={search}
                 onChange={(e) => { setSearch(e.target.value); }} />
-              <button className="detect-btn" disabled={detecting} onClick={runDetect}>
-                {detecting ? "检测中…" : "🛡 一键检测"}
-              </button>
               {(() => {
                 const idle = visible.filter((p) => !p.running).map((p) => p.id);
                 const live = visible.filter((p) => p.running).map((p) => p.id);
@@ -265,9 +262,6 @@ export function App() {
             </>
           ) : (
             <>
-              <button className="detect-btn" disabled={detecting} onClick={runDetect}>
-                {detecting ? "检测中…" : "🛡 一键检测"}
-              </button>
               <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>Test all</button>
               <button onClick={() => setBulkOpen(true)}>Bulk import</button>
               <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
@@ -290,10 +284,6 @@ export function App() {
             </div>
           ) : (
             <>
-              {(detResult || detErr) && (
-                <DetectResultPanel result={detResult} err={detErr}
-                  onClose={() => { setDetResult(null); setDetErr(null); }} />
-              )}
               {view === "proxies" ? (
                 <ProxiesView
                   proxies={proxies}
@@ -421,13 +411,13 @@ function PromptModal(props: { msg: string; placeholder: string; onYes: (v: strin
 }
 
 // ---------------- detection result ----------------
-function DetectResultPanel(props: { result: DetectResult | null; err: string | null; onClose: () => void }) {
+function DetectResultPanel(props: { result: DetectResult | null; err: string | null; onClose: () => void; inCard?: boolean; subtitle?: string }) {
   const { result, err } = props;
   const ratingLabel = (r: string) => r === "clean" ? "干净" : r === "risky" ? "有风险" : "已被标记";
   return (
-    <div className="detect-result-panel">
+    <div className={`detect-result-panel ${props.inCard ? "in-card" : ""}`}>
       <div className="drp-head">
-        <span className="sec-title">环境检测结果 <span className="faint">· 当前出口 IP</span></span>
+        <span className="sec-title">检测结果 <span className="faint">· {props.subtitle || "当前出口 IP"}</span></span>
         <button className="sm ghost iconbtn" title="关闭" onClick={props.onClose}>✕</button>
       </div>
       {err ? (
@@ -468,6 +458,15 @@ function ProfileCard(props: {
   const f = p.fingerprint;
   const pool = props.proxies.find((x) => x.raw === p.proxy_raw);
   const proxyOk = pool?.last_ok;
+  const [det, setDet] = useState<DetectResult | null>(null);
+  const [detErr, setDetErr] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const runDetect = async () => {
+    setDetecting(true); setDetErr(null); setDet(null);
+    try { setDet(await api.detect(p.proxy_raw || "")); }
+    catch (e: any) { setDetErr(e.message || "检测失败"); }
+    finally { setDetecting(false); }
+  };
   return (
     <div className="card">
       <div className="head">
@@ -476,6 +475,9 @@ function ProfileCard(props: {
         <span className="chip" title={p.engine === "chromium" ? "Chromium (patchright)" : "Camoufox (Firefox)"}>{p.engine === "chromium" ? "Chrome" : "Firefox"}</span>
         <span className="grow" />
         {p.running && <span className="chip run">running</span>}
+        <button className="card-detect-btn" title="检测这个环境的出口 IP" disabled={detecting} onClick={runDetect}>
+          {detecting ? "检测中…" : "🛡 检测"}
+        </button>
       </div>
       <div className="specs" onClick={props.onDetail} style={{ cursor: "pointer" }}>
         <div className="line"><span className="k">System</span><b style={{ textTransform: "capitalize" }}>{p.os}</b> · {f.screen} · {f.hardwareConcurrency} cores</div>
@@ -502,6 +504,11 @@ function ProfileCard(props: {
         <button className="sm" onClick={props.onClone}>Clone</button>
         <button className="sm ghost danger iconbtn" onClick={props.onDelete}>✕</button>
       </div>
+      {(det || detErr) && (
+        <DetectResultPanel result={det} err={detErr} inCard
+          subtitle={p.proxy_raw ? "经此环境的代理出口" : "无代理 · 直连本机 IP"}
+          onClose={() => { setDet(null); setDetErr(null); }} />
+      )}
     </div>
   );
 }
