@@ -58,6 +58,17 @@ export function App() {
   const [promptDlg, setPromptDlg] = useState<{ msg: string; placeholder: string; onYes: (v: string) => void } | null>(null);
   const askConfirm = (msg: string, onYes: () => void) => setConfirmDlg({ msg, onYes });
   const askPrompt = (msg: string, onYes: (v: string) => void, placeholder = "") => setPromptDlg({ msg, placeholder, onYes });
+  // One-click environment detection (lives at the top level so it's reachable
+  // from the main Profiles page, not buried in the proxy tab).
+  const [detecting, setDetecting] = useState(false);
+  const [detResult, setDetResult] = useState<DetectResult | null>(null);
+  const [detErr, setDetErr] = useState<string | null>(null);
+  const runDetect = async () => {
+    setDetecting(true); setDetErr(null); setDetResult(null);
+    try { setDetResult(await api.detect()); }
+    catch (e: any) { setDetErr(e.message || "检测失败"); }
+    finally { setDetecting(false); }
+  };
   const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = useCallback((msg: string, err = false) => {
@@ -229,6 +240,9 @@ export function App() {
             <>
               <input className="search" placeholder="Search…" value={search}
                 onChange={(e) => { setSearch(e.target.value); }} />
+              <button className="detect-btn" disabled={detecting} onClick={runDetect}>
+                {detecting ? "检测中…" : "🛡 一键检测"}
+              </button>
               {(() => {
                 const idle = visible.filter((p) => !p.running).map((p) => p.id);
                 const live = visible.filter((p) => p.running).map((p) => p.id);
@@ -251,6 +265,9 @@ export function App() {
             </>
           ) : (
             <>
+              <button className="detect-btn" disabled={detecting} onClick={runDetect}>
+                {detecting ? "检测中…" : "🛡 一键检测"}
+              </button>
               <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>Test all</button>
               <button onClick={() => setBulkOpen(true)}>Bulk import</button>
               <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
@@ -271,39 +288,47 @@ export function App() {
                 </div>
               )}
             </div>
-          ) : view === "proxies" ? (
-            <ProxiesView
-              proxies={proxies}
-              providers={providers}
-              onAdd={() => setEditingProxy("new")}
-              onEdit={(p) => setEditingProxy(p)}
-              onCheck={(p) => act(() => api.checkPoolProxy(p.id), "checked")}
-              onToggle={(p) => act(() => api.setProxyEnabled(p.id, !p.enabled))}
-              onDelete={(p) => askConfirm(`Delete proxy "${p.label}"?`, () => act(() => api.deleteProxy(p.id), "deleted"))}
-              onAddProvider={() => setEditingProvider(true)}
-              onRefreshProvider={(pv) => act(() => api.refreshProvider(pv.id), "refreshed from provider")}
-              onDeleteProvider={(pv) => askConfirm(`Delete provider "${pv.label}"?`, () => act(() => api.deleteProvider(pv.id), "deleted"))}
-            />
-          ) : visible.length === 0 ? (
-            <div className="empty">
-              <div className="big">No profiles {group ? `in “${group}”` : "yet"}</div>
-              Click <b>＋ New profile</b> to create one — it gets an auto name and a fresh fingerprint.
-            </div>
           ) : (
-            <div className="grid">
-              {visible.map((p) => (
-                <ProfileCard
-                  key={p.id} p={p}
+            <>
+              {(detResult || detErr) && (
+                <DetectResultPanel result={detResult} err={detErr}
+                  onClose={() => { setDetResult(null); setDetErr(null); }} />
+              )}
+              {view === "proxies" ? (
+                <ProxiesView
                   proxies={proxies}
-                  onLaunch={() => launchProfile(p)}
-                  onStop={() => act(() => api.stop(p.id), `stopped ${p.name}`)}
-                  onEdit={() => setEditing(p)}
-                  onDetail={async () => setDetail(await api.get(p.id))}
-                  onClone={() => act(() => api.clone(p.id, `${p.name}-copy`), "cloned")}
-                  onDelete={() => askConfirm(`Delete "${p.name}" and its data?`, () => act(() => api.remove(p.id), "deleted"))}
+                  providers={providers}
+                  onAdd={() => setEditingProxy("new")}
+                  onEdit={(p) => setEditingProxy(p)}
+                  onCheck={(p) => act(() => api.checkPoolProxy(p.id), "checked")}
+                  onToggle={(p) => act(() => api.setProxyEnabled(p.id, !p.enabled))}
+                  onDelete={(p) => askConfirm(`Delete proxy "${p.label}"?`, () => act(() => api.deleteProxy(p.id), "deleted"))}
+                  onAddProvider={() => setEditingProvider(true)}
+                  onRefreshProvider={(pv) => act(() => api.refreshProvider(pv.id), "refreshed from provider")}
+                  onDeleteProvider={(pv) => askConfirm(`Delete provider "${pv.label}"?`, () => act(() => api.deleteProvider(pv.id), "deleted"))}
                 />
-              ))}
-            </div>
+              ) : visible.length === 0 ? (
+                <div className="empty">
+                  <div className="big">No profiles {group ? `in “${group}”` : "yet"}</div>
+                  Click <b>＋ New profile</b> to create one — it gets an auto name and a fresh fingerprint.
+                </div>
+              ) : (
+                <div className="grid">
+                  {visible.map((p) => (
+                    <ProfileCard
+                      key={p.id} p={p}
+                      proxies={proxies}
+                      onLaunch={() => launchProfile(p)}
+                      onStop={() => act(() => api.stop(p.id), `stopped ${p.name}`)}
+                      onEdit={() => setEditing(p)}
+                      onDetail={async () => setDetail(await api.get(p.id))}
+                      onClone={() => act(() => api.clone(p.id, `${p.name}-copy`), "cloned")}
+                      onDelete={() => askConfirm(`Delete "${p.name}" and its data?`, () => act(() => api.remove(p.id), "deleted"))}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -395,6 +420,44 @@ function PromptModal(props: { msg: string; placeholder: string; onYes: (v: strin
   );
 }
 
+// ---------------- detection result ----------------
+function DetectResultPanel(props: { result: DetectResult | null; err: string | null; onClose: () => void }) {
+  const { result, err } = props;
+  const ratingLabel = (r: string) => r === "clean" ? "干净" : r === "risky" ? "有风险" : "已被标记";
+  return (
+    <div className="detect-result-panel">
+      <div className="drp-head">
+        <span className="sec-title">环境检测结果 <span className="faint">· 当前出口 IP</span></span>
+        <button className="sm ghost iconbtn" title="关闭" onClick={props.onClose}>✕</button>
+      </div>
+      {err ? (
+        <div className="detect-err">检测失败:{err}</div>
+      ) : result && (
+        <div className="detect-result">
+          <div className={`score-badge ${result.rating}`}>
+            <span className="score-num">{result.score}</span>
+            <span className="score-label">{ratingLabel(result.rating)}</span>
+          </div>
+          <div className="detect-rows">
+            {result.rows.map((r, i) => (
+              <div className="detect-row" key={i}>
+                <span className={`drow-dot ${r.ok === false ? "bad" : r.ok === true ? "good" : "unk"}`} />
+                <span className="drow-k">{r.label}</span>
+                <span className="drow-v">{r.value}</span>
+              </div>
+            ))}
+            {result.rating !== "clean" && (
+              <a className="detect-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer">
+                IP 不够干净?换 711Proxy 住宅 IP →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------- profile card ----------------
 function ProfileCard(props: {
   p: Profile; proxies: PoolProxy[];
@@ -451,55 +514,10 @@ function ProxiesView(props: {
   onAddProvider: () => void; onRefreshProvider: (p: Provider) => void; onDeleteProvider: (p: Provider) => void;
 }) {
   const [offersOpen, setOffersOpen] = useState(false);
-  const [detecting, setDetecting] = useState(false);
-  const [detResult, setDetResult] = useState<DetectResult | null>(null);
-  const [detErr, setDetErr] = useState<string | null>(null);
   const mask = (raw: string) => raw.replace(/:([^:@/]+)@/, ":••••@");
-
-  const runDetect = async () => {
-    setDetecting(true); setDetErr(null);
-    try { setDetResult(await api.detect()); }
-    catch (e: any) { setDetErr(e.message || "检测失败"); }
-    finally { setDetecting(false); }
-  };
-  const ratingLabel = (r: string) => r === "clean" ? "干净" : r === "risky" ? "有风险" : "已被标记";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-      {/* one-click environment detection */}
-      <div className="detect-panel">
-        <div className="detect-head">
-          <span className="sec-title">环境检测 <span className="faint">· 当前出口 IP 是否干净</span></span>
-          <button className="primary" disabled={detecting} onClick={runDetect}>
-            {detecting ? "检测中…" : "一键检测"}
-          </button>
-        </div>
-        <div className="detect-hint">查当前网络出口 IP 的地区 · ISP · 类型 · 风控标记,给出 0–100 信任分。</div>
-        {detErr && <div className="detect-err">检测失败:{detErr}</div>}
-        {detResult && (
-          <div className="detect-result">
-            <div className={`score-badge ${detResult.rating}`}>
-              <span className="score-num">{detResult.score}</span>
-              <span className="score-label">{ratingLabel(detResult.rating)}</span>
-            </div>
-            <div className="detect-rows">
-              {detResult.rows.map((r, i) => (
-                <div className="detect-row" key={i}>
-                  <span className={`drow-dot ${r.ok === false ? "bad" : r.ok === true ? "good" : "unk"}`} />
-                  <span className="drow-k">{r.label}</span>
-                  <span className="drow-v">{r.value}</span>
-                </div>
-              ))}
-              {detResult.rating !== "clean" && (
-                <a className="detect-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer">
-                  IP 不够干净?换 711Proxy 住宅 IP →
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* providers panel */}
       <div className="providers">
         <div className="providers-head">

@@ -265,11 +265,14 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .check-cta { display: block; padding: 9px 13px; font-size: 11px; color: #cfe0ff; background: var(--accent-soft); text-decoration: none; }
 .check-cta:hover { filter: brightness(1.15); }
 
-/* one-click environment detection panel */
-.detect-panel { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
-.detect-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.detect-hint { margin-top: 6px; font-size: 12px; color: var(--muted); }
-.detect-err { margin-top: 10px; font-size: 12px; color: #f0533f; }
+/* one-click detect button (toolbar) */
+.detect-btn { background: var(--accent-soft); color: #cfe0ff; border-color: rgba(80,120,255,.35); font-weight: 600; }
+.detect-btn:hover:not(:disabled) { filter: brightness(1.15); }
+
+/* detection result panel (shown at top of content after 一键检测) */
+.detect-result-panel { background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; }
+.drp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.detect-err { margin-top: 10px; font-size: 12.5px; color: #f0533f; }
 .detect-result { margin-top: 14px; display: flex; gap: 16px; align-items: flex-start; }
 .score-badge { flex-shrink: 0; width: 92px; height: 92px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--border-2); }
 .score-badge.clean { background: rgba(63,185,80,.12); border-color: rgba(63,185,80,.35); }
