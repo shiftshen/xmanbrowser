@@ -83,16 +83,21 @@ def _ensure_chromium() -> None:
         from patchright.sync_api import sync_playwright
         with sync_playwright() as p:
             path = p.chromium.executable_path
-        import os
         if path and os.path.exists(path):
             return
     except Exception:
         pass
     try:
         print("[xman] downloading Chromium engine (one-time)…", flush=True)
-        import subprocess, sys
-        subprocess.run([sys.executable, "-m", "patchright", "install", "chromium"],
-                       check=False)
+        # Run patchright's bundled Node driver directly — `python -m patchright`
+        # doesn't exist inside a PyInstaller-frozen exe.
+        import subprocess
+        from patchright._impl._driver import compute_driver_executable, get_driver_env
+        drv = compute_driver_executable()
+        cmd = list(drv) if isinstance(drv, (list, tuple)) else [drv]
+        subprocess.run([*cmd, "install", "chromium"],
+                       env={**os.environ, **get_driver_env()}, check=False)
+        print("[xman] chromium ready.", flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"[xman] chromium fetch failed: {e}", flush=True)
 

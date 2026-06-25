@@ -21,9 +21,11 @@ def _ensure_engine() -> None:
         pass
     try:
         print("[xman] downloading browser engine (one-time)…", flush=True)
-        from camoufox.__main__ import main as camoufox_main
-        sys.argv = ["camoufox", "fetch"]
-        camoufox_main()
+        # Invoke Camoufox's own `fetch` CLI in-process (downloads browser + geoip
+        # + addons). Works in a frozen build where `python -m camoufox` can't run.
+        from camoufox.__main__ import cli as camoufox_cli
+        camoufox_cli(["fetch"], standalone_mode=False)
+        print("[xman] engine ready.", flush=True)
     except SystemExit:
         pass
     except Exception as e:  # noqa: BLE001
