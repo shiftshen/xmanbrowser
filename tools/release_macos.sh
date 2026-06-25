@@ -79,7 +79,7 @@ UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
 TARGZ="/tmp/XmanBrowser_${VERSION}_aarch64.app.tar.gz"
 rm -f "$TARGZ" "$TARGZ.sig"
 tar czf "$TARGZ" -C "$(dirname "$APP")" "XmanBrowser.app"
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npx --prefix ui tauri signer sign -k "$UPD_KEY" "$TARGZ" >/dev/null
+npx --prefix ui tauri signer sign -f "$UPD_KEY" -p "" "$TARGZ" >/dev/null
 echo "  updater: $TARGZ (+ .sig)"
 
 echo "✅ DONE"

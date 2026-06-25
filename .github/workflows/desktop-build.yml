@@ -17,10 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            target: aarch64-apple-darwin
-          - os: macos-13
-            target: x86_64-apple-darwin
+          # Only Windows is built in CI — macOS is built + Developer-ID signed +
+          # notarized locally (CI can't notarize), and we don't ship an Intel
+          # build, so latest.json lists only darwin-aarch64 (local) + windows.
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
