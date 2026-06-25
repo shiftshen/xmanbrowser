@@ -29,3 +29,6 @@ tauri-plugin-http = "2"
 # Open affiliate / external links in the user's real browser (a webview <a
 # target="_blank"> does nothing on its own).
 tauri-plugin-opener = "2"
+# Native save/open dialogs for profile export/import (webview blob download is
+# unreliable). File read/write is done by our own commands (see lib.rs).
+tauri-plugin-dialog = "2"

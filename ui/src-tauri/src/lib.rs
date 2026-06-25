@@ -100,11 +100,27 @@ fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
     }
 }
 
+/// Write UTF-8 text to an absolute path the user picked via the save dialog.
+/// Doing the write in Rust avoids the webview's unreliable blob download and the
+/// fs-plugin scope dance; the path comes from the native dialog, not the page.
+#[tauri::command]
+fn save_text(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
+/// Read UTF-8 text from a path the user picked via the open dialog.
+#[tauri::command]
+fn read_text(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![save_text, read_text])
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)

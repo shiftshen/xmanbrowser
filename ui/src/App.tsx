@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { save as dlgSave, open as dlgOpen } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 import { useT, getLang, setLang } from "./i18n";
 
@@ -153,24 +155,46 @@ export function App() {
     }
   };
 
+  const importText = async (text: string) => {
+    const data = JSON.parse(text);
+    const res = await api.importProfiles(Array.isArray(data) ? data : [data]);
+    flash(`${t("tb.import")} ✓ ${res.filter((r) => !r.error).length}`);
+    refresh();
+  };
+  // Export via a native Save dialog + a Rust write (the webview's blob download
+  // is unreliable and would silently produce a broken file). Only report success
+  // after the file is actually written. Falls back to a blob in the dev browser.
   const onExport = async () => {
     const data = await api.exportAll();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "xman-profiles.json";
-    a.click();
-    flash(`exported ${data.length} profiles`);
+    const contents = JSON.stringify(data, null, 2);
+    if (_inTauri) {
+      try {
+        const path = await dlgSave({ defaultPath: "xman-profiles.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+        if (!path) return; // user cancelled
+        await invoke("save_text", { path, contents });
+        flash(`${t("tb.export")} ✓ ${data.length}`);
+      } catch (e: any) { flash(e.message || "export failed", true); }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([contents], { type: "application/json" }));
+      a.download = "xman-profiles.json"; a.click();
+      flash(`${t("tb.export")} ✓ ${data.length}`);
+    }
+  };
+  const onImport = async () => {
+    if (_inTauri) {
+      try {
+        const path = await dlgOpen({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
+        if (!path || typeof path !== "string") return;
+        await importText(await invoke<string>("read_text", { path }));
+      } catch (e: any) { flash(e.message || "import failed", true); }
+    } else {
+      fileRef.current?.click(); // dev browser → hidden file input
+    }
   };
   const onImportFile = async (f: File) => {
-    try {
-      const data = JSON.parse(await f.text());
-      const res = await api.importProfiles(Array.isArray(data) ? data : [data]);
-      flash(`imported ${res.filter((r) => !r.error).length}`);
-      refresh();
-    } catch (e: any) {
-      flash(e.message, true);
-    }
+    try { await importText(await f.text()); }
+    catch (e: any) { flash(e.message, true); }
   };
 
   const visible = profiles.filter((p) => !group || p.group === group);
@@ -269,7 +293,7 @@ export function App() {
                   </>
                 );
               })()}
-              <button onClick={() => fileRef.current?.click()}>{t("tb.import")}</button>
+              <button onClick={onImport}>{t("tb.import")}</button>
               <button onClick={onExport}>{t("tb.export")}</button>
               <button className="primary" onClick={() => setEditing("new")}>{t("tb.newProfile")}</button>
               <input ref={fileRef} type="file" accept="application/json" style={{ display: "none" }}
