@@ -54,20 +54,15 @@ jobs:
         working-directory: ui
         run: npm ci || npm install
 
+      # macOS builds are ad-hoc signed via tauri.conf (bundle.macOS.signingIdentity
+      # = "-"), so they run on Apple Silicon without a developer account. To ship
+      # NOTARIZED, warning-free releases later: add the Apple Developer secrets
+      # (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+      # APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID) and re-add them to this step's env.
+      # (They must NOT be passed empty — tauri-action then tries `security import`
+      # on an empty cert and fails.)
       - name: Build desktop bundle
         uses: tauri-apps/tauri-action@v0
-        env:
-          # macOS code-signing + notarization (optional). Add these repo secrets
-          # once you have an Apple Developer account; builds stay unsigned until then.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows code-signing (optional).
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ui
           args: --target ${{ matrix.target }}
