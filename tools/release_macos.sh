@@ -28,22 +28,29 @@ echo "── [2/7] tauri build"
 pkill -f "XmanBrowser.app/Contents/MacOS/app" 2>/dev/null || true
 ( cd ui && npx tauri build )
 
-echo "── [3/7] Developer ID deep-sign"
-bash tools/sign_macos.sh "$IDENTITY" "$APP"
+scan_unsigned() {
+  find "$APP" -type f | while IFS= read -r f; do
+    case "$f" in *.py|*.pyc|*.txt|*.json|*.yml|*.yaml|*.dat|*.pem|*.html|*.css|*.js|*.svg|*.png|*.ico|*.icns) continue;; esac
+    if file "$f" 2>/dev/null | grep -q "Mach-O"; then
+      codesign -dvv "$f" 2>&1 | grep -q "Authority=Developer ID Application" || echo "$f"
+    fi
+  done
+}
 
-echo "── [4/7] signature scan (GATE — every Mach-O must be Developer ID signed)"
-UNSIGNED=$(find "$APP" -type f | while IFS= read -r f; do
-  case "$f" in *.py|*.pyc|*.txt|*.json|*.yml|*.yaml|*.dat|*.pem|*.html|*.css|*.js|*.svg|*.png|*.ico|*.icns) continue;; esac
-  if file "$f" 2>/dev/null | grep -q "Mach-O"; then
-    codesign -dvv "$f" 2>&1 | grep -q "Authority=Developer ID Application" || echo "$f"
-  fi
-done)
+echo "── [3+4/7] Developer ID deep-sign + scan gate (retry — Apple's timestamp server is flaky)"
+UNSIGNED=""
+for attempt in 1 2 3; do
+  bash tools/sign_macos.sh "$IDENTITY" "$APP" >/dev/null 2>&1 || true
+  UNSIGNED="$(scan_unsigned)"
+  [ -z "$UNSIGNED" ] && { echo "  ✓ all Mach-O signed (attempt $attempt)"; break; }
+  echo "  attempt $attempt: $(echo "$UNSIGNED" | grep -c . ) still unsigned (likely timestamp.apple.com rate-limit) — retrying"
+  sleep 5
+done
 if [ -n "$UNSIGNED" ]; then
-  echo "✗ ABORT — these Mach-O are not Developer ID signed (notarization would fail):"
+  echo "✗ ABORT — still unsigned after retries (notarization would fail):"
   echo "$UNSIGNED" | sed 's/^/    /'
   exit 1
 fi
-echo "  ✓ all Mach-O signed"
 
 echo "── [5/7] build DMG"
 STAGE="$(mktemp -d)/dmg"; mkdir -p "$STAGE"
