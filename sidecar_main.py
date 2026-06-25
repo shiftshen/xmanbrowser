@@ -32,7 +32,26 @@ def _ensure_engine() -> None:
         print(f"[xman] engine fetch failed: {e}", flush=True)
 
 
+def _use_bundled_camoufox() -> None:
+    """If the Camoufox browser is shipped inside the app (sidecar/camoufox-data),
+    point camoufox at it so there's zero first-run download. The path resolvers
+    (installed_verstr / launch_path / get_path) all read pkgman.INSTALL_DIR at
+    call time, so redirecting that constant is enough."""
+    try:
+        from pathlib import Path
+        # frozen onedir: this exe lives in .../sidecar/ next to camoufox-data/
+        base = Path(sys.executable).parent if getattr(sys, "frozen", False) \
+            else Path(__file__).parent / "ui" / "src-tauri" / "sidecar"
+        bundled = base / "camoufox-data"
+        if (bundled / "version.json").exists():
+            import camoufox.pkgman as pk
+            pk.INSTALL_DIR = bundled
+    except Exception:
+        pass  # fall back to on-demand download
+
+
 def main() -> None:
+    _use_bundled_camoufox()
     # Frozen exes can't do `python -m xman.runner`, so the manager re-invokes
     # THIS executable with a "runner" subcommand to open a profile's browser.
     if len(sys.argv) > 1 and sys.argv[1] == "runner":
