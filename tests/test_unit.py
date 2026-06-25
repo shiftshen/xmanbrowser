@@ -31,6 +31,32 @@ def test_proxy_camoufox_shape():
 def test_proxy_bad():
     with pytest.raises(ValueError):
         Proxy.parse("")
+    with pytest.raises(ValueError):
+        Proxy.parse("justtext")
+
+
+@pytest.mark.parametrize("raw", [
+    "1.2.3.4:8080:user:pass",
+    "user:pass:1.2.3.4:8080",
+    "1.2.3.4:8080@user:pass",
+    "user:pass@1.2.3.4:8080",
+    "1.2.3.4 8080 user pass",
+    "1.2.3.4,8080,user,pass",
+    "1.2.3.4|8080|user|pass",
+    "1.2.3.4-8080-user-pass",
+    "host.example.com:3128:bob:secret",
+])
+def test_proxy_smart_formats(raw):
+    # all of these encode 1.2.3.4-ish host : port : user : pass in some order/sep
+    p = Proxy.parse(raw)
+    assert p.port == (3128 if "example.com" in raw else 8080)
+    assert p.username and p.password
+    assert "." in p.host  # host is the IP/domain, never a port or credential
+
+
+def test_proxy_hostname_with_dash_not_split():
+    p = Proxy.parse("my-proxy.com:8080")
+    assert p.host == "my-proxy.com" and p.port == 8080
 
 
 def test_locale_for_country():

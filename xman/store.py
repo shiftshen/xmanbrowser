@@ -404,27 +404,48 @@ _PORTMAP_RE = _re.compile(r"\b(\d{2,5}):(\d{2,5})(?:/(?:tcp|udp))?\b")
 _BARE_PORTMAP_RE = _re.compile(r"^(\d{2,5}):(\d{2,5})(?:/(?:tcp|udp))?$")
 
 
+_TLD_RE = _re.compile(r"\.[a-zA-Z]{2,}$")
+
+
+def _real_host(host: str) -> bool:
+    """Bulk extraction is strict: the host must look real — an IP, localhost, or a
+    domain with a letter TLD — so noise from `docker ps` output (a bare word like
+    'hours', or a CPU figure like '0.05%') isn't mistaken for a proxy host.
+    Single typed proxies use the permissive Proxy.parse directly."""
+    from .proxy import _IPV4_RE
+    if _IPV4_RE.match(host) or host.lower() == "localhost":
+        return True
+    return bool(_TLD_RE.search(host))
+
+
 def _extract_proxy_line(line: str) -> Optional[str]:
     line = line.strip()
     if not line or line.startswith("#"):
         return None
-    # 1. a bare digits:digits is a docker HOST:CONTAINER port mapping, NOT a real
-    #    host:port proxy (a proxy host is an IP or name, never an all-digit port).
+    from .proxy import _SCHEME_RE
+    # 1. explicit scheme:// — trusted as intentional; normalize.
+    if _SCHEME_RE.match(line):
+        try:
+            return Proxy.parse(line).full_url()
+        except Exception:
+            return None
+    # 2. a bare digits:digits docker HOST:CONTAINER port mapping.
     m = _BARE_PORTMAP_RE.match(line)
     if m:
         return f"http://127.0.0.1:{m.group(1)}"
-    # 2. a clean proxy string (scheme://…, host:port:user:pass, host:port)
+    # 3. a clean schemeless proxy in any order/separator, but only with a real
+    #    host (skip prose). Normalize so the stored value is always clean.
     try:
-        Proxy.parse(line)
-        return line
+        p = Proxy.parse(line)
+        if _real_host(p.host):
+            return p.full_url()
     except Exception:
         pass
-    # 3. an IP:port (or 0.0.0.0:port->… docker mapping) embedded in a longer line
+    # 4. an IP:port (or 0.0.0.0:port->… docker mapping) embedded in a longer line.
     m = _IPPORT_RE.search(line)
     if m:
-        host = m.group(1) or "127.0.0.1"
-        return f"http://{host}:{m.group(2)}"
-    # 4. a host-port:container-port mapping embedded in a longer line
+        return f"http://{m.group(1) or '127.0.0.1'}:{m.group(2)}"
+    # 5. a host-port:container-port mapping embedded in a messy docker row.
     m = _PORTMAP_RE.search(line)
     if m:
         return f"http://127.0.0.1:{m.group(1)}"

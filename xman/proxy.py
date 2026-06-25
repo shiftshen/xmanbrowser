@@ -13,6 +13,46 @@ import httpx
 
 # A single proxy bound to a profile. We support http / https / socks5.
 _SCHEME_RE = re.compile(r"^(?P<scheme>https?|socks5h?)://", re.IGNORECASE)
+_IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+
+
+def _host_score(tok: str) -> int:
+    """How host-like a token is: IPv4=3, dotted hostname=2, bare word=1, else 0.
+    A pure number is a port, never a host."""
+    if _IPV4_RE.match(tok):
+        return 3
+    if tok.isdigit():
+        return 0
+    if "." in tok:
+        return 2
+    if re.search(r"[a-zA-Z]", tok):
+        return 1
+    return 0
+
+
+def _assign_fields(scheme: str, fields: list) -> "Proxy":
+    """Given 2-4 fields in ANY order/separator, work out host / port / user / pass
+    by content: the port is a number 1-65535, the host is the most host-like token
+    (IP or domain), and the remaining two are user/pass in order."""
+    fields = [f for f in fields if f != ""]
+    ports = [i for i, f in enumerate(fields) if f.isdigit() and 1 <= int(f) <= 65535]
+    if not ports or len(fields) < 2:
+        raise ValueError("no host:port found")
+    # host = highest host-score token (prefer one that isn't the port)
+    ranked = sorted(range(len(fields)), key=lambda i: (_host_score(fields[i]), -i), reverse=True)
+    host_i = next((i for i in ranked if i not in ports or len(ports) == len(fields)), ranked[0])
+    if _host_score(fields[host_i]) == 0:
+        raise ValueError("no host found")
+    # port = a port-looking field adjacent to the host, else the first port
+    port_i = next((c for c in (host_i + 1, host_i - 1) if c in ports), ports[0])
+    if port_i == host_i:
+        port_i = next((p for p in ports if p != host_i), None)
+    if port_i is None:
+        raise ValueError("no port found")
+    others = [fields[i] for i in range(len(fields)) if i not in (host_i, port_i)]
+    user = others[0] if len(others) >= 1 else None
+    pw = others[1] if len(others) >= 2 else None
+    return Proxy(scheme, fields[host_i], int(fields[port_i]), user or None, pw or None)
 
 
 @dataclass
@@ -25,41 +65,63 @@ class Proxy:
 
     @classmethod
     def parse(cls, raw: str) -> "Proxy":
-        """Parse a proxy from common formats:
+        """Parse a proxy from (almost) any common format, auto-detecting which
+        field is the host / port / user / pass regardless of order or separator:
 
-        - scheme://user:pass@host:port
-        - scheme://host:port
-        - host:port:user:pass        (AdsPower/BitBrowser style)
-        - host:port
+        - scheme://user:pass@host:port  ·  scheme://host:port
+        - host:port  ·  host:port:user:pass  ·  user:pass:host:port
+        - host:port@user:pass  ·  user:pass@host:port
+        - space / tab / comma / pipe separated, or dash-separated IP lists
         Default scheme is http when omitted.
         """
         raw = raw.strip()
         if not raw:
             raise ValueError("empty proxy string")
 
+        scheme = "http"
         m = _SCHEME_RE.match(raw)
         if m:
             scheme = m.group("scheme").lower().replace("socks5h", "socks5")
-            rest = raw[m.end():]
-        else:
-            scheme = "http"
-            rest = raw
+            raw = raw[m.end():]
 
-        # user:pass@host:port
-        if "@" in rest:
-            cred, hostport = rest.rsplit("@", 1)
-            username, _, password = cred.partition(":")
-            host, _, port = hostport.partition(":")
-            return cls(scheme, host, int(port), username or None, password or None)
+        # creds and server split by '@', either order (host side identified by content)
+        if "@" in raw:
+            a, b = raw.rsplit("@", 1)
+            for creds, server in ((a, b), (b, a)):
+                try:
+                    sp = cls._fields(server)
+                    cp = cls._fields(creds)
+                    if len(sp) == 2 and 1 <= len(cp) <= 2:
+                        return _assign_fields(scheme, [*sp, *cp])
+                except Exception:
+                    continue
+            raise ValueError(f"unrecognized proxy format: {raw!r}")
 
-        parts = rest.split(":")
-        if len(parts) == 4:  # host:port:user:pass
-            host, port, username, password = parts
-            return cls(scheme, host, int(port), username or None, password or None)
-        if len(parts) == 2:  # host:port
-            host, port = parts
-            return cls(scheme, host, int(port))
+        # try separators in order of confidence; first that yields host:port wins
+        for fields in cls._candidate_splits(raw):
+            try:
+                return _assign_fields(scheme, fields)
+            except Exception:
+                continue
         raise ValueError(f"unrecognized proxy format: {raw!r}")
+
+    @staticmethod
+    def _fields(s: str) -> list:
+        s = s.strip()
+        if re.search(r"[\s,|]", s):
+            return [f for f in re.split(r"[\s,|]+", s) if f]
+        return [f for f in s.split(":") if f]
+
+    @classmethod
+    def _candidate_splits(cls, raw: str):
+        # whitespace / comma / pipe / tab
+        if re.search(r"[\s,|]", raw):
+            yield [f for f in re.split(r"[\s,|]+", raw) if f]
+        # colon (the classic host:port:user:pass)
+        yield [f for f in raw.split(":") if f]
+        # dash, only for an IP-led list (avoid splitting hostnames like my-proxy.com)
+        if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}-\d", raw):
+            yield [f for f in raw.split("-") if f]
 
     def server_url(self) -> str:
         """server URL without credentials (Camoufox/Playwright wants creds split out)."""
