@@ -262,7 +262,7 @@ export function App() {
             </>
           ) : (
             <>
-              <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>Test all</button>
+              <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>🛡 一键检测</button>
               <button onClick={() => setBulkOpen(true)}>Bulk import</button>
               <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
             </>

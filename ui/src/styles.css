@@ -235,7 +235,7 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 
 /* proxy IP-type badge */
 .iptype { font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 500; }
-.iptype.datacenter { background: rgba(240,83,63,.15); color: #ff8a7d; border: 1px solid rgba(240,83,63,.35); }
+.iptype.datacenter { background: rgba(214,153,40,.15); color: #e0a92e; border: 1px solid rgba(214,153,40,.40); }
 .iptype.residential { background: var(--green-soft); color: #7ee787; border: 1px solid rgba(63,185,80,.35); }
 .iptype.mobile { background: var(--accent-soft); color: #cfe0ff; border: 1px solid rgba(79,140,255,.35); }
 
