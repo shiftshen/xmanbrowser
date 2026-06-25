@@ -35,13 +35,14 @@ def _init():
 def create(
     name: str,
     os: str = typer.Option("macos", help="macos | windows | linux"),
+    engine: str = typer.Option("camoufox", help="camoufox (Firefox) | chromium (real Chrome)"),
     proxy: Optional[str] = typer.Option(None, help="scheme://user:pass@host:port"),
     group: str = typer.Option("default"),
     note: str = typer.Option(""),
     seed: Optional[int] = typer.Option(None, help="reproducible fingerprint seed"),
 ):
     """Create a profile with a fresh, internally-consistent fingerprint."""
-    prof = store.create(name, os_name=os, proxy_raw=proxy, group=group, note=note, seed=seed)
+    prof = store.create(name, os_name=os, engine=engine, proxy_raw=proxy, group=group, note=note, seed=seed)
     console.print(f"[green]created[/] [bold]{prof.name}[/] (id={prof.id})")
     _print_summary(prof)
 

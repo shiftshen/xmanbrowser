@@ -41,7 +41,12 @@ class Profile:
 
     @property
     def user_data_dir(self) -> Path:
-        d = data_dir() / "userdata" / self.id
+        # Pure path — no side effect on read (GET /api/profiles/{id} shouldn't
+        # create directories). The dir is created at launch via ensure_user_data_dir().
+        return data_dir() / "userdata" / self.id
+
+    def ensure_user_data_dir(self) -> Path:
+        d = self.user_data_dir
         d.mkdir(parents=True, exist_ok=True)
         return d
 

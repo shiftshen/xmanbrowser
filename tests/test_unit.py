@@ -115,4 +115,4 @@ def test_profile_save_load_and_isolation(monkeypatch):
         # isolated, distinct user-data-dirs
         q = create_profile("acct2", os_name="macos", seed=6)
         assert p.user_data_dir != q.user_data_dir
-        assert os.path.isdir(p.user_data_dir)
+        assert os.path.isdir(p.ensure_user_data_dir())

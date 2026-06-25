@@ -214,7 +214,14 @@ def batch_launch(body: BatchReq):
     for name_or_id in body.ids:
         try:
             prof = store.get(name_or_id)
-            out.append(manager.launch(prof.id, url=body.url, headless=body.headless))
+            eng = prof.fingerprint.engine
+            if not engine.is_installed(eng):
+                # Same contract as single launch: kick off the download and report
+                # progress instead of spawning a runner that can't open a browser.
+                st = engine.ensure_async(eng)
+                out.append({"profile_id": prof.id, "engine_downloading": eng, "status": st})
+            else:
+                out.append(manager.launch(prof.id, url=body.url, headless=body.headless))
         except Exception as e:  # noqa: BLE001
             out.append({"profile_id": name_or_id, "error": str(e)})
     return out

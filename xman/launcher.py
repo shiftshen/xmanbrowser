@@ -43,7 +43,7 @@ def build_launch_options(
         "os": spec.os,
         "headless": headless,
         "persistent_context": True,
-        "user_data_dir": str(profile.user_data_dir),
+        "user_data_dir": str(profile.ensure_user_data_dir()),
         "humanize": humanize,
         "block_webrtc": block_webrtc,
         "i_know_what_im_doing": True,
@@ -144,7 +144,7 @@ class _ChromiumContext:
         vw, vh = (c.get("viewport") or [sw, sh])
 
         kw: Dict[str, Any] = {
-            "user_data_dir": str(prof.user_data_dir),
+            "user_data_dir": str(prof.ensure_user_data_dir()),
             "headless": self._headless,
             "user_agent": c.get("userAgent"),
             "locale": c.get("language") or "en-US",

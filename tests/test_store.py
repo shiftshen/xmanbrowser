@@ -169,6 +169,26 @@ def test_proxy_api(home):
     assert any(g["name"] == "default" for g in c.get("/api/groups").json())
 
 
+def test_user_data_dir_no_side_effect(home):
+    from xman import store
+    p = store.create("u", os_name="macos", seed=1)
+    d = p.user_data_dir
+    assert not d.exists()          # reading the path must NOT create it
+    assert p.ensure_user_data_dir().exists()  # explicit create works
+
+
+def test_batch_launch_handles_missing_engine(home, monkeypatch):
+    from fastapi.testclient import TestClient
+    from xman import service, engine
+    monkeypatch.setattr(engine, "is_installed", lambda e: False)
+    monkeypatch.setattr(engine, "ensure_async", lambda e: {"engine": e, "state": "downloading", "percent": 0})
+    client = TestClient(service.app)
+    client.post("/api/profiles", json={"name": "b1", "os": "macos", "engine": "camoufox", "seed": 1})
+    r = client.post("/api/batch/launch", json={"ids": ["b1"]})
+    assert r.status_code == 200
+    assert r.json()[0].get("engine_downloading") == "camoufox"  # not a runner spawn
+
+
 def test_api_health_and_create(home):
     from fastapi.testclient import TestClient
     from xman.service import app
