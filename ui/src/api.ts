@@ -7,7 +7,16 @@
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-const xfetch: typeof fetch = isTauri ? (tauriFetch as typeof fetch) : window.fetch.bind(window);
+const rawFetch: typeof fetch = isTauri ? (tauriFetch as typeof fetch) : window.fetch.bind(window);
+
+// Every request carries this header. The backend requires it on /api/*; a
+// foreign webpage can't add a custom header cross-origin without a CORS
+// preflight (which the backend denies), so it can't drive the local API.
+const xfetch: typeof fetch = (input: any, init: any = {}) => {
+  const headers = new Headers(init.headers || {});
+  headers.set("X-XMan-Client", "xman");
+  return rawFetch(input, { ...init, headers });
+};
 
 export interface FingerprintSummary {
   os: string;

@@ -8,11 +8,13 @@ Run:  xman serve         (or)   uvicorn xman.service:app
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from . import store, manager, engine
@@ -33,12 +35,46 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
-# UI (Tauri/Vite dev) runs on a different origin; allow localhost during dev.
+# This API binds to localhost, but any webpage the user visits can still reach
+# 127.0.0.1. Two guards stop a malicious page from driving the app:
+#   1. CORS is restricted to the app's own origins (not "*"), so a foreign page
+#      can neither read responses nor make preflighted (write) calls.
+#   2. Every /api/* call must carry a custom header the app always sends; a
+#      cross-origin page can't add it without triggering a CORS-denied preflight.
+# Plus a Host check to defeat DNS-rebinding. /api/health stays open for probes.
+_ALLOWED_ORIGINS = [
+    "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost",
+    "http://localhost:5191", "http://127.0.0.1:5191",
+    "http://localhost:8723", "http://127.0.0.1:8723",
+]
+_CLIENT_HEADER = "x-xman-client"
+_OPEN_PATHS = {"/api/health", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def _guard(request: Request, call_next):
+    # Trusted in-process callers (test suite) opt out so they don't have to
+    # forge browser headers. Never set in the packaged app.
+    if os.environ.get("XMAN_API_OPEN") == "1":
+        return await call_next(request)
+    # Anti DNS-rebinding: the Host must be loopback (any port). A rebinding
+    # attack from evil.com carries Host: evil.com and is rejected here.
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if host not in ("127.0.0.1", "localhost", "[::1]", "::1", ""):
+        return JSONResponse({"detail": "bad host"}, status_code=421)
+    path = request.url.path
+    if path.startswith("/api/") and path not in _OPEN_PATHS and request.method != "OPTIONS":
+        if request.headers.get(_CLIENT_HEADER) != "xman":
+            return JSONResponse({"detail": "missing client header"}, status_code=403)
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
 )
 
 
