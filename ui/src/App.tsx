@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+import { useT, getLang, setLang } from "./i18n";
 
 // A webview <a target="_blank"> opens nothing; route external links through the
 // OS browser via the Tauri opener (plain window.open as the dev-browser fallback).
@@ -19,9 +20,9 @@ type View = "profiles" | "proxies";
 
 // Proxy affiliate placements (referral links). Two picks: one premium /
 // Chinese-payment-friendly, one budget with a free tier.
-const PROXY_OFFERS: { tier: string; logo: string; alt: string; sub: string; href: string }[] = [
-  { tier: "高质量住宅", logo: logo711, alt: "711Proxy", sub: "9000万+住宅IP · 中文/支付宝 · 抗风控", href: "https://www.711proxy.com/signup?code=812411" },
-  { tier: "便宜入门", logo: logoWebshare, alt: "Webshare", sub: "免费10个代理起 · 按量计费 · 卡/PayPal", href: "https://www.webshare.io/?referral_code=a408k2bpaeid" },
+const PROXY_OFFERS: { tierKey: string; logo: string; alt: string; subKey: string; href: string }[] = [
+  { tierKey: "offer.tier.711", logo: logo711, alt: "711Proxy", subKey: "offer.sub.711", href: "https://www.711proxy.com/signup?code=812411" },
+  { tierKey: "offer.tier.webshare", logo: logoWebshare, alt: "Webshare", subKey: "offer.sub.webshare", href: "https://www.webshare.io/?referral_code=a408k2bpaeid" },
 ];
 
 // Affiliate CTA shown when a detection comes back dirty (→ buy clean proxies).
@@ -45,6 +46,7 @@ function BrandMark() {
 }
 
 export function App() {
+  const t = useT();
   const [view, setView] = useState<View>("profiles");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -173,9 +175,9 @@ export function App() {
 
   const visible = profiles.filter((p) => !group || p.group === group);
   const addGroup = () => {
-    askPrompt("New group name:", (n) => {
+    askPrompt(t("dlg.newGroupName"), (n) => {
       if (n.trim()) act(() => api.addGroup(n.trim()), "group added");
-    }, "e.g. shop-accounts");
+    }, t("dlg.newGroupPlaceholder"));
   };
 
   return (
@@ -190,12 +192,12 @@ export function App() {
           </div>
         </div>
 
-        <div className="nav-label">Profiles</div>
+        <div className="nav-label">{t("nav.profiles")}</div>
         <div
           className={`nav-item ${view === "profiles" && !group ? "active" : ""}`}
           onClick={() => { setView("profiles"); setGroup(""); }}
         >
-          <span className="ico">▦</span> All profiles
+          <span className="ico">▦</span> {t("nav.allProfiles")}
           <span className="grow" />
           <span className="count">{profiles.length}</span>
         </div>
@@ -210,30 +212,33 @@ export function App() {
             <span className="count">{g.count}</span>
           </div>
         ))}
-        <div className="nav-item nav-add" onClick={addGroup}><span className="ico">＋</span> New group</div>
+        <div className="nav-item nav-add" onClick={addGroup}><span className="ico">＋</span> {t("nav.newGroup")}</div>
 
-        <div className="nav-label">Network</div>
+        <div className="nav-label">{t("nav.network")}</div>
         <div className={`nav-item ${view === "proxies" ? "active" : ""}`} onClick={() => setView("proxies")}>
-          <span className="ico">⇄</span> Proxy pool
+          <span className="ico">⇄</span> {t("nav.proxyPool")}
           <span className="grow" />
           <span className="count">{proxies.length}</span>
         </div>
 
         {/* always-visible proxy affiliate — clean residential/ISP IPs */}
         <div className="nav-aff">
-          <div className="nav-aff-title">获取干净代理</div>
+          <div className="nav-aff-title">{t("nav.getProxies")}</div>
           {PROXY_OFFERS.map((o) => (
-            <a className="nav-aff-item" key={o.href} href={o.href} onClick={(e) => openExternal(e, o.href)} title={o.sub}>
+            <a className="nav-aff-item" key={o.href} href={o.href} onClick={(e) => openExternal(e, o.href)} title={t(o.subKey)}>
               <img src={o.logo} alt={o.alt} />
-              <span className="nav-aff-tag">{o.tier}</span>
+              <span className="nav-aff-tag">{t(o.tierKey)}</span>
             </a>
           ))}
         </div>
 
         <div className="spacer" />
+        <button className="lang-toggle" onClick={() => setLang(getLang() === "en" ? "zh" : "en")} title="Language / 语言">
+          🌐 {t("lang.toggle")}
+        </button>
         <div className="api-pill">
           <span className={`dot ${online === null ? "wait" : online ? "ok" : "bad"}`} />
-          {online === null ? "connecting…" : online ? `connected · v${version}` : "starting…"}
+          {online === null ? t("status.connecting") : online ? `${t("status.connected")} · v${version}` : t("status.starting")}
         </div>
       </aside>
 
@@ -241,14 +246,14 @@ export function App() {
       <div className="main">
         <div className="toolbar">
           {view === "profiles" ? (
-            <h1>{group || "All profiles"} <span className="sub">{visible.length}</span></h1>
+            <h1>{group || t("nav.allProfiles")} <span className="sub">{visible.length}</span></h1>
           ) : (
-            <h1>Proxy pool <span className="sub">{proxies.length}</span></h1>
+            <h1>{t("nav.proxyPool")} <span className="sub">{proxies.length}</span></h1>
           )}
           <div className="grow" />
           {view === "profiles" ? (
             <>
-              <input className="search" placeholder="Search…" value={search}
+              <input className="search" placeholder={t("tb.search")} value={search}
                 onChange={(e) => { setSearch(e.target.value); }} />
               {(() => {
                 const idle = visible.filter((p) => !p.running).map((p) => p.id);
@@ -256,25 +261,25 @@ export function App() {
                 return (
                   <>
                     {idle.length > 0 && (
-                      <button title={`Launch ${idle.length}`} onClick={() => act(() => api.batchLaunch(idle, HOME_URL), `launching ${idle.length}`)}>▶ Launch all</button>
+                      <button onClick={() => act(() => api.batchLaunch(idle, HOME_URL), `launching ${idle.length}`)}>{t("tb.launchAll")}</button>
                     )}
                     {live.length > 0 && (
-                      <button className="danger" title={`Stop ${live.length}`} onClick={() => act(() => api.batchStop(live), `stopping ${live.length}`)}>■ Stop all</button>
+                      <button className="danger" onClick={() => act(() => api.batchStop(live), `stopping ${live.length}`)}>{t("tb.stopAll")}</button>
                     )}
                   </>
                 );
               })()}
-              <button onClick={() => fileRef.current?.click()}>Import</button>
-              <button onClick={onExport}>Export</button>
-              <button className="primary" onClick={() => setEditing("new")}>＋ New profile</button>
+              <button onClick={() => fileRef.current?.click()}>{t("tb.import")}</button>
+              <button onClick={onExport}>{t("tb.export")}</button>
+              <button className="primary" onClick={() => setEditing("new")}>{t("tb.newProfile")}</button>
               <input ref={fileRef} type="file" accept="application/json" style={{ display: "none" }}
                 onChange={(e) => e.target.files?.[0] && onImportFile(e.target.files[0])} />
             </>
           ) : (
             <>
-              <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>🛡 一键检测</button>
-              <button onClick={() => setBulkOpen(true)}>Bulk import</button>
-              <button className="primary" onClick={() => setEditingProxy("new")}>＋ Add proxy</button>
+              <button onClick={() => act(() => api.checkAllProxies(), "tested all")} disabled={proxies.length === 0}>{t("tb.testAll")}</button>
+              <button onClick={() => setBulkOpen(true)}>{t("tb.bulkImport")}</button>
+              <button className="primary" onClick={() => setEditingProxy("new")}>{t("tb.addProxy")}</button>
             </>
           )}
         </div>
@@ -302,15 +307,15 @@ export function App() {
                   onEdit={(p) => setEditingProxy(p)}
                   onCheck={(p) => act(() => api.checkPoolProxy(p.id), "checked")}
                   onToggle={(p) => act(() => api.setProxyEnabled(p.id, !p.enabled))}
-                  onDelete={(p) => askConfirm(`Delete proxy "${p.label}"?`, () => act(() => api.deleteProxy(p.id), "deleted"))}
+                  onDelete={(p) => askConfirm(t("dlg.deleteProxy", p.label), () => act(() => api.deleteProxy(p.id), "deleted"))}
                   onAddProvider={() => setEditingProvider(true)}
                   onRefreshProvider={(pv) => act(() => api.refreshProvider(pv.id), "refreshed from provider")}
-                  onDeleteProvider={(pv) => askConfirm(`Delete provider "${pv.label}"?`, () => act(() => api.deleteProvider(pv.id), "deleted"))}
+                  onDeleteProvider={(pv) => askConfirm(t("dlg.deleteProvider", pv.label), () => act(() => api.deleteProvider(pv.id), "deleted"))}
                 />
               ) : visible.length === 0 ? (
                 <div className="empty">
-                  <div className="big">No profiles {group ? `in “${group}”` : "yet"}</div>
-                  Click <b>＋ New profile</b> to create one — it gets an auto name and a fresh fingerprint.
+                  <div className="big">{t("empty.title", group ? t("empty.titleIn", group) : t("empty.titleYet"))}</div>
+                  {t("empty.hint")}
                 </div>
               ) : (
                 <div className="grid">
@@ -323,7 +328,7 @@ export function App() {
                       onEdit={() => setEditing(p)}
                       onDetail={async () => setDetail(await api.get(p.id))}
                       onClone={() => act(() => api.clone(p.id, `${p.name}-copy`), "cloned")}
-                      onDelete={() => askConfirm(`Delete "${p.name}" and its data?`, () => act(() => api.remove(p.id), "deleted"))}
+                      onDelete={() => askConfirm(t("dlg.deleteProfile", p.name), () => act(() => api.remove(p.id), "deleted"))}
                     />
                   ))}
                 </div>
@@ -384,11 +389,11 @@ export function App() {
       {confirmDlg && (
         <div className="overlay" onClick={() => setConfirmDlg(null)}>
           <div className="modal sm-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Confirm</h2>
+            <h2>{t("dlg.confirm")}</h2>
             <div className="desc">{confirmDlg.msg}</div>
             <div className="foot">
-              <button onClick={() => setConfirmDlg(null)}>Cancel</button>
-              <button className="danger" onClick={() => { confirmDlg.onYes(); setConfirmDlg(null); }}>Delete</button>
+              <button onClick={() => setConfirmDlg(null)}>{t("dlg.cancel")}</button>
+              <button className="danger" onClick={() => { confirmDlg.onYes(); setConfirmDlg(null); }}>{t("dlg.delete")}</button>
             </div>
           </div>
         </div>
@@ -401,6 +406,7 @@ export function App() {
 
 function PromptModal(props: { msg: string; placeholder: string; onYes: (v: string) => void; onClose: () => void }) {
   const [v, setV] = useState("");
+  const t = useT();
   const submit = () => { props.onYes(v); props.onClose(); };
   return (
     <div className="overlay" onClick={props.onClose}>
@@ -412,8 +418,8 @@ function PromptModal(props: { msg: string; placeholder: string; onYes: (v: strin
             onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") props.onClose(); }} />
         </div>
         <div className="foot">
-          <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={submit}>OK</button>
+          <button onClick={props.onClose}>{t("dlg.cancel")}</button>
+          <button className="primary" onClick={submit}>{t("dlg.ok")}</button>
         </div>
       </div>
     </div>
@@ -421,34 +427,50 @@ function PromptModal(props: { msg: string; placeholder: string; onYes: (v: strin
 }
 
 // ---------------- detection result ----------------
+// Rows are built here from the result's structured fields (not the backend's
+// pre-formatted text) so they follow the UI language.
+function detectRows(r: DetectResult, t: (k: string, ...a: (string | number)[]) => string) {
+  const rows: { k: string; v: string; ok: boolean | null }[] = [];
+  const loc = [r.city, r.country].filter(Boolean).join(", ") || "unknown";
+  rows.push({ k: t("det.row.ipRegion"), v: `${r.ip} · ${loc}`, ok: true });
+  if (r.isp) rows.push({ k: t("det.row.isp"), v: r.isp, ok: true });
+  const typeKey = r.ip_type === "residential" ? "det.type.residential"
+    : r.ip_type === "mobile" ? "det.type.mobile"
+    : r.ip_type === "datacenter" ? "det.type.datacenter" : "det.type.unknown";
+  rows.push({ k: t("det.row.ipType"), v: t(typeKey), ok: r.ip_type === "residential" || r.ip_type === "mobile" ? true : r.ip_type === "datacenter" ? false : null });
+  if (r.flags?.hosting && r.ip_type !== "datacenter") rows.push({ k: t("det.row.hosting"), v: t("det.hosting.hit"), ok: false });
+  rows.push({ k: t("det.row.proxyCheck"), v: r.flags?.proxy ? t("det.proxy.flagged") : t("det.proxy.clean"), ok: !r.flags?.proxy });
+  return rows;
+}
+
 function DetectResultPanel(props: { result: DetectResult | null; err: string | null; onClose: () => void; inCard?: boolean; subtitle?: string }) {
   const { result, err } = props;
-  const ratingLabel = (r: string) => r === "clean" ? "干净" : r === "risky" ? "有风险" : "已被标记";
+  const t = useT();
   return (
     <div className={`detect-result-panel ${props.inCard ? "in-card" : ""}`}>
       <div className="drp-head">
-        <span className="sec-title">检测结果 <span className="faint">· {props.subtitle || "当前出口 IP"}</span></span>
-        <button className="sm ghost iconbtn" title="关闭" onClick={props.onClose}>✕</button>
+        <span className="sec-title">{t("det.title")} <span className="faint">· {props.subtitle || t("det.subCurrent")}</span></span>
+        <button className="sm ghost iconbtn" title={t("dlg.cancel")} onClick={props.onClose}>✕</button>
       </div>
       {err ? (
-        <div className="detect-err">检测失败:{err}</div>
+        <div className="detect-err">{t("det.fail", err)}</div>
       ) : result && (
         <div className="detect-result">
           <div className={`score-badge ${result.rating}`}>
             <span className="score-num">{result.score}</span>
-            <span className="score-label">{ratingLabel(result.rating)}</span>
+            <span className="score-label">{t(`det.rating.${result.rating}`)}</span>
           </div>
           <div className="detect-rows">
-            {result.rows.map((r, i) => (
+            {detectRows(result, t).map((r, i) => (
               <div className="detect-row" key={i}>
                 <span className={`drow-dot ${r.ok === false ? "bad" : r.ok === true ? "good" : "unk"}`} />
-                <span className="drow-k">{r.label}</span>
-                <span className="drow-v">{r.value}</span>
+                <span className="drow-k">{r.k}</span>
+                <span className="drow-v">{r.v}</span>
               </div>
             ))}
             {result.rating !== "clean" && (
               <a className="detect-cta" href={CLEAN_IP_CTA.href} onClick={(e) => openExternal(e, CLEAN_IP_CTA.href)}>
-                IP 不够干净?换 711Proxy 住宅 IP →
+                {t("det.cta")}
               </a>
             )}
           </div>
@@ -465,6 +487,7 @@ function ProfileCard(props: {
   onDetail: () => void; onClone: () => void; onDelete: () => void;
 }) {
   const { p } = props;
+  const t = useT();
   const f = p.fingerprint;
   const pool = props.proxies.find((x) => x.raw === p.proxy_raw);
   const proxyOk = pool?.last_ok;
@@ -474,7 +497,7 @@ function ProfileCard(props: {
   const runDetect = async () => {
     setDetecting(true); setDetErr(null); setDet(null);
     try { setDet(await api.detect(p.proxy_raw || "")); }
-    catch (e: any) { setDetErr(e.message || "检测失败"); }
+    catch (e: any) { setDetErr(e.message || "failed"); }
     finally { setDetecting(false); }
   };
   return (
@@ -484,22 +507,22 @@ function ProfileCard(props: {
         <span className="title">{p.name}</span>
         <span className="chip" title={p.engine === "chromium" ? "Chromium (patchright)" : "Camoufox (Firefox)"}>{p.engine === "chromium" ? "Chrome" : "Firefox"}</span>
         <span className="grow" />
-        {p.running && <span className="chip run">running</span>}
-        <button className="card-detect-btn" title="检测这个环境的出口 IP" disabled={detecting} onClick={runDetect}>
-          {detecting ? "检测中…" : "🛡 检测"}
+        {p.running && <span className="chip run">{t("card.running")}</span>}
+        <button className="card-detect-btn" disabled={detecting} onClick={runDetect}>
+          {detecting ? t("card.checking") : t("card.check")}
         </button>
       </div>
       <div className="specs" onClick={props.onDetail} style={{ cursor: "pointer" }}>
-        <div className="line"><span className="k">System</span><b style={{ textTransform: "capitalize" }}>{p.os}</b> · {f.screen} · {f.hardwareConcurrency} cores</div>
-        <div className="line"><span className="k">WebGL</span><b>{f.webglRenderer}</b></div>
-        <div className="line"><span className="k">Proxy</span>
+        <div className="line"><span className="k">{t("card.system")}</span><b style={{ textTransform: "capitalize" }}>{p.os}</b> · {f.screen} · {f.hardwareConcurrency} {t("card.cores")}</div>
+        <div className="line"><span className="k">{t("card.webgl")}</span><b>{f.webglRenderer}</b></div>
+        <div className="line"><span className="k">{t("card.proxy")}</span>
           {p.proxy_raw ? (
             <span className="proxy-tag">
               <span className="pdot" style={{ background: proxyOk === true ? "#3fb950" : proxyOk === false ? "#f0533f" : "#5c6678" }} />
               <b>{pool ? pool.label : p.proxy_raw}</b>
               {pool?.last_cc && <span className="faint">· {pool.last_cc}</span>}
             </span>
-          ) : <b className="faint">none (direct)</b>}
+          ) : <b className="faint">{t("card.noProxy")}</b>}
         </div>
         {p.note && <div className="note">“{p.note}”</div>}
       </div>
@@ -508,15 +531,15 @@ function ProfileCard(props: {
       </div>
       <div className="actions">
         {p.running
-          ? <button className="danger" onClick={props.onStop}>Stop</button>
-          : <button className="primary" onClick={props.onLaunch}>Launch</button>}
-        <button className="sm" onClick={props.onEdit}>Edit</button>
-        <button className="sm" onClick={props.onClone}>Clone</button>
+          ? <button className="danger" onClick={props.onStop}>{t("card.stop")}</button>
+          : <button className="primary" onClick={props.onLaunch}>{t("card.launch")}</button>}
+        <button className="sm" onClick={props.onEdit}>{t("card.edit")}</button>
+        <button className="sm" onClick={props.onClone}>{t("card.clone")}</button>
         <button className="sm ghost danger iconbtn" onClick={props.onDelete}>✕</button>
       </div>
       {(det || detErr) && (
         <DetectResultPanel result={det} err={detErr} inCard
-          subtitle={p.proxy_raw ? "经此环境的代理出口" : "无代理 · 直连本机 IP"}
+          subtitle={p.proxy_raw ? t("det.subProxy") : t("det.subDirect")}
           onClose={() => { setDet(null); setDetErr(null); }} />
       )}
     </div>
@@ -531,6 +554,7 @@ function ProxiesView(props: {
   onAddProvider: () => void; onRefreshProvider: (p: Provider) => void; onDeleteProvider: (p: Provider) => void;
 }) {
   const [offersOpen, setOffersOpen] = useState(false);
+  const t = useT();
   const mask = (raw: string) => raw.replace(/:([^:@/]+)@/, ":••••@");
 
   return (
@@ -538,12 +562,12 @@ function ProxiesView(props: {
       {/* providers panel */}
       <div className="providers">
         <div className="providers-head">
-          <span className="sec-title">Providers <span className="faint">· auto-fetch proxies from an API or rotating gateway</span></span>
-          <button className="sm primary" onClick={props.onAddProvider}>＋ Add provider</button>
+          <span className="sec-title">{t("prov.title")} <span className="faint">· {t("prov.subtitle")}</span></span>
+          <button className="sm primary" onClick={props.onAddProvider}>{t("prov.add")}</button>
         </div>
         {props.providers.length === 0 ? (
           <div className="faint" style={{ fontSize: 12.5, padding: "4px 2px" }}>
-            No providers. Add one to pull proxies automatically instead of pasting them.
+            {t("prov.empty")}
           </div>
         ) : (
           <div className="prov-list">
@@ -563,20 +587,20 @@ function ProxiesView(props: {
 
       {/* get-proxies offers (affiliate) */}
       <div className="offers">
-        <span className="offers-label">Need clean IPs? Datacenter/VPN IPs get flagged — residential & 4G pass anti-fraud.</span>
+        <span className="offers-label">{t("offers.hint")}</span>
         <div className="offer-dd">
-          <button className="primary sm" onClick={() => setOffersOpen((v) => !v)}>获取住宅 / 4G / ISP 代理 ▾</button>
+          <button className="primary sm" onClick={() => setOffersOpen((v) => !v)}>{t("offers.button")}</button>
           {offersOpen && <div className="dd-backdrop" onClick={() => setOffersOpen(false)} />}
           {offersOpen && (
             <div className="offer-menu">
               {PROXY_OFFERS.map((o) => (
                 <a className="offer-item" key={o.href} href={o.href} onClick={(e) => { setOffersOpen(false); openExternal(e, o.href); }}>
-                  <span className="offer-tier">{o.tier}</span>
+                  <span className="offer-tier">{t(o.tierKey)}</span>
                   <img className="offer-logo" src={o.logo} alt={o.alt} />
-                  <span className="offer-sub">{o.sub}</span>
+                  <span className="offer-sub">{t(o.subKey)}</span>
                 </a>
               ))}
-              <div className="offer-disc">Affiliate links — buying through them supports development.</div>
+              <div className="offer-disc">{t("offers.disclosure")}</div>
             </div>
           )}
         </div>
