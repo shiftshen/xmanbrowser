@@ -34,6 +34,24 @@ def main() -> int:
     from .launcher import launch
 
     prof = get(args.profile_id)
+    print(f"LAUNCH {prof.id} {prof.name} engine={prof.fingerprint.engine} os={prof.fingerprint.os}", flush=True)
+    if prof.fingerprint.engine != "chromium":
+        try:
+            from camoufox.pkgman import INSTALL_DIR, launch_path
+            print(f"camoufox INSTALL_DIR={INSTALL_DIR} exe={launch_path()}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"camoufox path probe failed: {e}", flush=True)
+    try:
+        _run(prof, args)
+    except BaseException:  # noqa: BLE001 — log the real reason the browser died
+        import traceback
+        print("LAUNCH FAILED:\n" + traceback.format_exc(), flush=True)
+        return 1
+    return 0
+
+
+def _run(prof, args) -> None:
+    from .launcher import launch
     with launch(prof, headless=args.headless) as ctx:
         # A persistent context already opens with one blank page — reuse it
         # instead of calling new_page(), which would leave the user with 2 tabs.

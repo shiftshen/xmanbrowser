@@ -90,11 +90,17 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
         cmd = [sys.executable, "-m", "xman.runner", profile_id, "--url", url]
     if headless:
         cmd.append("--headless")
+    # Capture the runner's output to a per-profile log so launch failures (e.g. a
+    # browser that crashes on start) are diagnosable instead of vanishing.
+    from .profile import data_dir
+    logdir = data_dir() / "logs"
+    logdir.mkdir(parents=True, exist_ok=True)
+    logf = open(logdir / f"launch-{profile_id}.log", "w", buffering=1)
     # Detach into its own process group so terminating the API won't kill browsers.
     # POSIX: new session. Windows: new process group (no setsid).
     popen_kw: dict = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdout": logf,
+        "stderr": subprocess.STDOUT,
         "env": {**os.environ},
     }
     # A frozen (PyInstaller onedir) re-invocation must run from the exe's own
@@ -111,6 +117,7 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
     else:
         popen_kw["start_new_session"] = True
     proc = subprocess.Popen(cmd, **popen_kw)
+    logf.close()  # the child keeps its own inherited handle
     rec = {"pid": proc.pid, "started_at": time.time()}
     d[profile_id] = rec
     _save(d)
