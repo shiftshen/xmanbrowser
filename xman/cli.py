@@ -144,7 +144,8 @@ def launch(
     from .launcher import launch as do_launch
     console.print(f"launching [bold]{prof.name}[/] ...")
     with do_launch(prof, headless=headless) as ctx:
-        page = ctx.new_page()
+        # reuse the persistent context's default blank page (avoid a 2nd tab)
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
         page.goto(url)
         console.print(f"[green]open[/] — {url}\nclose the window (or Ctrl-C) to exit.")
         try:

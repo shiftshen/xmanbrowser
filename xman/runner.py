@@ -35,7 +35,9 @@ def main() -> int:
 
     prof = get(args.profile_id)
     with launch(prof, headless=args.headless) as ctx:
-        page = ctx.new_page()
+        # A persistent context already opens with one blank page — reuse it
+        # instead of calling new_page(), which would leave the user with 2 tabs.
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
         if args.url and args.url != "about:blank":
             try:
                 page.goto(args.url, wait_until="domcontentloaded", timeout=45000)
