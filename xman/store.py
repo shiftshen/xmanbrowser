@@ -75,6 +75,8 @@ _PROXY_MIGRATIONS = {
     "success_count": "ALTER TABLE proxies ADD COLUMN success_count INTEGER NOT NULL DEFAULT 0",
     "source": "ALTER TABLE proxies ADD COLUMN source TEXT",
     "grp": "ALTER TABLE proxies ADD COLUMN grp TEXT NOT NULL DEFAULT ''",
+    "last_isp": "ALTER TABLE proxies ADD COLUMN last_isp TEXT",
+    "last_type": "ALTER TABLE proxies ADD COLUMN last_type TEXT",
 }
 
 
@@ -343,6 +345,8 @@ def _proxy_row(r: sqlite3.Row) -> dict:
         "success_count": r["success_count"] if "success_count" in keys else 0,
         "source": r["source"] if "source" in keys else None,
         "group": r["grp"] if "grp" in keys else "",
+        "isp": r["last_isp"] if "last_isp" in keys else None,
+        "ip_type": r["last_type"] if "last_type" in keys else None,
     }
 
 
@@ -531,8 +535,10 @@ def record_proxy_check(pid: str, geo) -> dict:
         else:
             c.execute(
                 "UPDATE proxies SET last_ok=1, fail_count=0, success_count=success_count+1, "
-                "last_ip=?, last_country=?, last_cc=?, last_tz=?, checked_at=? WHERE id=?",
-                (geo.ip, geo.country, geo.country_code, geo.timezone, time.time(), p["id"]),
+                "last_ip=?, last_country=?, last_cc=?, last_tz=?, last_isp=?, last_type=?, "
+                "checked_at=? WHERE id=?",
+                (geo.ip, geo.country, geo.country_code, geo.timezone,
+                 getattr(geo, "isp", None), getattr(geo, "ip_type", None), time.time(), p["id"]),
             )
     return get_proxy(p["id"])
 

@@ -4,6 +4,13 @@ import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
 
+// Proxy affiliate placements — replace the href with your referral links.
+// Keep it to two: one budget, one premium. Earn commission when users buy.
+const PROXY_OFFERS: { label: string; sub: string; href: string }[] = [
+  { label: "Residential & 4G proxies", sub: "clean IPs · pass anti-fraud", href: "https://iproyal.com/?r=YOUR_AFFILIATE_ID" },
+  { label: "Cheap SOCKS5 pool", sub: "budget · multi-account", href: "https://www.922proxy.com/?ref=YOUR_AFFILIATE_ID" },
+];
+
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
 function avatarColor(s: string) {
   let h = 0;
@@ -436,6 +443,17 @@ function ProxiesView(props: {
         )}
       </div>
 
+      {/* get-proxies offers (affiliate) */}
+      <div className="offers">
+        <span className="offers-label">Need clean IPs? Datacenter/VPN IPs get flagged — residential & 4G pass anti-fraud:</span>
+        {PROXY_OFFERS.map((o) => (
+          <a className="offer" key={o.href} href={o.href} target="_blank" rel="noreferrer">
+            <span className="offer-label">{o.label}</span>
+            <span className="offer-sub">{o.sub}</span>
+          </a>
+        ))}
+      </div>
+
       {/* pool table */}
       {props.proxies.length === 0 ? (
         <div className="empty">
@@ -446,7 +464,7 @@ function ProxiesView(props: {
       ) : (
         <table className="ptable">
           <thead>
-            <tr><th></th><th>Label</th><th>Address</th><th>Status</th><th>Source</th><th></th></tr>
+            <tr><th></th><th>Label</th><th>Address</th><th>Status</th><th>IP type</th><th>Source</th><th></th></tr>
           </thead>
           <tbody>
             {props.proxies.map((p) => (
@@ -469,6 +487,13 @@ function ProxiesView(props: {
                   ) : (
                     <span className="geo-badge none">○ not checked</span>
                   )}
+                </td>
+                <td>
+                  {p.ip_type ? (
+                    <span className={`iptype ${p.ip_type}`} title={p.isp ?? ""}>
+                      {p.ip_type === "datacenter" ? "Datacenter" : p.ip_type === "residential" ? "Residential" : "Mobile"}
+                    </span>
+                  ) : <span className="faint" style={{ fontSize: 12 }}>—</span>}
                 </td>
                 <td className="faint" style={{ fontSize: 12 }}>{p.source ?? "manual"}</td>
                 <td>
@@ -616,8 +641,8 @@ function ProfileModal(props: {
           <div className="field" style={{ flex: 1 }}>
             <label>Engine {!isNew && <span className="hint">· fixed</span>}</label>
             <select value={engine} onChange={(e) => setEngine(e.target.value)} disabled={!isNew}>
-              <option value="camoufox">Camoufox (unique fingerprint)</option>
-              <option value="chromium">Chromium (real Chrome, stealth)</option>
+              <option value="camoufox">Camoufox · unique fingerprint (recommended)</option>
+              <option value="chromium">Chromium · real Chrome, shared fingerprint</option>
             </select>
           </div>
         </div>

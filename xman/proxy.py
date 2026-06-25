@@ -155,6 +155,10 @@ class GeoInfo:
     timezone: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    isp: Optional[str] = None
+    # "datacenter" | "residential" | "mobile" | None — quality signal: datacenter
+    # IPs get flagged (hosting/proxy) by anti-fraud, residential/mobile look clean.
+    ip_type: Optional[str] = None
 
 
 def _httpx_proxy(proxy: Optional[Proxy]) -> Optional[str]:
@@ -234,9 +238,35 @@ def check_and_locate(proxy: Optional[Proxy], timeout: float = 15.0) -> GeoInfo:
                     continue
                 geo = parser(r.json())
                 if geo and geo.ip:
+                    _classify_ip(geo, timeout=timeout)
                     return geo
                 last_err = f"{url.split('/')[2]} -> unexpected response"
             except Exception as e:  # noqa: BLE001 — try the next provider
                 last_err = f"{url.split('/')[2]} -> {str(e)[:60]}"
                 continue
     raise RuntimeError(f"could not reach any geo service through the proxy ({last_err})")
+
+
+def _classify_ip(geo: GeoInfo, timeout: float = 8.0) -> None:
+    """Tag the exit IP's quality (datacenter / residential / mobile) + ISP.
+
+    Queried directly (not through the proxy) against ip-api's free proxy/hosting/
+    mobile flags. Best-effort — failures leave the fields None.
+    """
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.get(f"http://ip-api.com/json/{geo.ip}?fields=status,isp,proxy,hosting,mobile")
+            d = r.json()
+        if d.get("status") != "success":
+            return
+        geo.isp = d.get("isp")
+        if d.get("mobile"):
+            geo.ip_type = "mobile"
+        elif d.get("hosting"):
+            geo.ip_type = "datacenter"
+        elif d.get("proxy"):
+            geo.ip_type = "datacenter"  # flagged proxy IP, treat as risky
+        else:
+            geo.ip_type = "residential"
+    except Exception:
+        pass

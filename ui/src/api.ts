@@ -60,6 +60,8 @@ export interface PoolProxy {
   success_count: number;
   source: string | null;
   group: string;
+  isp: string | null;
+  ip_type: "datacenter" | "residential" | "mobile" | null;
 }
 
 export interface Group {
