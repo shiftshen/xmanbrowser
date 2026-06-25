@@ -330,7 +330,7 @@ export function App() {
       {bulkOpen && (
         <BulkProxyModal
           onClose={() => setBulkOpen(false)}
-          onDone={(n, errs) => { setBulkOpen(false); flash(errs ? `added ${n}, ${errs} failed` : `added ${n} proxies`); refresh(); }}
+          onDone={(n, skipped) => { setBulkOpen(false); flash(`added ${n} prox${n === 1 ? "y" : "ies"}${skipped ? `, ${skipped} skipped` : ""}`); refresh(); }}
           onError={(m) => flash(m, true)}
         />
       )}
@@ -765,16 +765,15 @@ function ProxyModal(props: {
 
 // ---------------- bulk proxy import ----------------
 function BulkProxyModal(props: {
-  onClose: () => void; onDone: (added: number, errors: number) => void; onError: (m: string) => void;
+  onClose: () => void; onDone: (added: number, skipped: number) => void; onError: (m: string) => void;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const lines = text.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#")).length;
   const submit = async () => {
     setBusy(true);
     try {
       const r = await api.addProxiesBulk(text);
-      props.onDone(r.added.length, r.errors.length);
+      props.onDone(r.added.length, r.skipped);
     } catch (e: any) { props.onError(e.message); }
     finally { setBusy(false); }
   };
@@ -782,16 +781,20 @@ function BulkProxyModal(props: {
     <div className="overlay" onClick={props.onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>Bulk import proxies</h2>
-        <div className="desc">One proxy per line. Formats: <code>scheme://user:pass@host:port</code>, <code>host:port:user:pass</code>, or <code>host:port</code>. Blank / # lines are ignored.</div>
+        <div className="desc">
+          Paste proxies (one per line) — or paste raw <code>docker ps</code> output and
+          we'll pull the port mappings out. Formats: <code>scheme://user:pass@host:port</code>,
+          <code>host:port:user:pass</code>, <code>host:port</code>, or a <code>PORT:8888</code> mapping.
+          Non-proxy lines are ignored; duplicates are skipped.
+        </div>
         <div className="field">
-          <textarea style={{ minHeight: 180, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
+          <textarea style={{ minHeight: 200, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
             value={text} onChange={(e) => setText(e.target.value)}
-            placeholder={"socks5://user:pass@1.2.3.4:1080\nhttp://gw.example.com:8080\n5.6.7.8:1080:user:pass"} />
+            placeholder={"socks5://user:pass@1.2.3.4:1080\nhttp://gw.example.com:8080\n5.6.7.8:1080:user:pass\n\n# or paste docker ps output:\nnordvpn-th40-proxy  …  18893:8888  …"} />
         </div>
         <div className="foot">
-          <span className="faint" style={{ marginRight: "auto", alignSelf: "center" }}>{lines} line{lines === 1 ? "" : "s"}</span>
           <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={submit} disabled={busy || !lines}>{busy ? "Importing…" : `Import ${lines}`}</button>
+          <button className="primary" onClick={submit} disabled={busy || !text.trim()}>{busy ? "Importing…" : "Import"}</button>
         </div>
       </div>
     </div>

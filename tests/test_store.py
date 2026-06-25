@@ -100,12 +100,26 @@ def test_proxy_pool(home):
 
 def test_proxy_bulk_import(home):
     from xman import store
+    # non-proxy lines (comments, prose) are silently ignored, not errored —
+    # so a whole `docker ps` block can be pasted.
     res = store.add_proxies_bulk(
-        "socks5://u:p@1.2.3.4:1080\n# comment\n\nhttp://h:8080\nbad-no-port\n5.6.7.8:3128:u:p"
+        "socks5://u:p@1.2.3.4:1080\n# comment\n\nhttp://h:8080\nbad no port here\n5.6.7.8:3128:u:p"
     )
     assert len(res["added"]) == 3
-    assert len(res["errors"]) == 1 and "bad-no-port" in res["errors"][0]["line"]
     assert len(store.list_proxies()) == 3
+
+
+def test_bulk_import_docker_ps(home):
+    """Paste a `docker ps`-style block (one field per line) — extract the port
+    mappings as http://127.0.0.1:PORT, ignore names/ids/cpu/time."""
+    from xman import store
+    text = (
+        "nordvpn-th40-proxy\n67d0d4051f5f\nqmcgaw/gluetun:latest\n18893:8888\n0.05%\n3 hours ago\n"
+        "nordvpn-th31-proxy\n84cb82f9123a\n127.0.0.1:18888->8888/tcp\n0%\n"
+    )
+    res = store.add_proxies_bulk(text)
+    raws = sorted(p["raw"] for p in res["added"])
+    assert raws == ["http://127.0.0.1:18888", "http://127.0.0.1:18893"]
 
 
 def test_proxy_auto_disable(home):

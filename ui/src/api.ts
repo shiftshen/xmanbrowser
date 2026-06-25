@@ -211,7 +211,7 @@ export const api = {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
-    }).then((r) => j<{ added: PoolProxy[]; errors: { line: string; error: string }[] }>(r)),
+    }).then((r) => j<{ added: PoolProxy[]; errors: { line: string; error: string }[]; skipped: number }>(r)),
   updateProxy: (id: string, body: Partial<Pick<PoolProxy, "label" | "raw" | "note" | "group">>) =>
     xfetch(`${BASE}/proxies/${id}`, {
       method: "PATCH",

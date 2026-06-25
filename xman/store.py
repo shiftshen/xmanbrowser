@@ -392,22 +392,66 @@ def set_proxy_enabled(pid: str, enabled: bool) -> dict:
     return get_proxy(p["id"])
 
 
-def add_proxies_bulk(text: str) -> dict:
-    """Add many proxies at once — one per line (blank / '#' lines skipped).
+import re as _re
 
-    Borrowed pattern from the legacy proxy-management UI. Returns the rows that
-    were added and any per-line errors so the UI can report them.
+# Pull proxies out of arbitrary pasted text (a clean list OR e.g. `docker ps`
+# output). Matches, in order: an IP:port mapping (incl. 0.0.0.0:PORT->… from
+# docker), then a bare HOSTPORT:CONTAINERPORT mapping (e.g. 18893:8888).
+_IPPORT_RE = _re.compile(r"(?:(\d{1,3}(?:\.\d{1,3}){3})|0\.0\.0\.0|\[::\]):(\d{2,5})(?:->\d+)?")
+_PORTMAP_RE = _re.compile(r"\b(\d{2,5}):(\d{2,5})(?:/(?:tcp|udp))?\b")
+
+
+_BARE_PORTMAP_RE = _re.compile(r"^(\d{2,5}):(\d{2,5})(?:/(?:tcp|udp))?$")
+
+
+def _extract_proxy_line(line: str) -> Optional[str]:
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return None
+    # 1. a bare digits:digits is a docker HOST:CONTAINER port mapping, NOT a real
+    #    host:port proxy (a proxy host is an IP or name, never an all-digit port).
+    m = _BARE_PORTMAP_RE.match(line)
+    if m:
+        return f"http://127.0.0.1:{m.group(1)}"
+    # 2. a clean proxy string (scheme://…, host:port:user:pass, host:port)
+    try:
+        Proxy.parse(line)
+        return line
+    except Exception:
+        pass
+    # 3. an IP:port (or 0.0.0.0:port->… docker mapping) embedded in a longer line
+    m = _IPPORT_RE.search(line)
+    if m:
+        host = m.group(1) or "127.0.0.1"
+        return f"http://{host}:{m.group(2)}"
+    # 4. a host-port:container-port mapping embedded in a longer line
+    m = _PORTMAP_RE.search(line)
+    if m:
+        return f"http://127.0.0.1:{m.group(1)}"
+    return None
+
+
+def add_proxies_bulk(text: str) -> dict:
+    """Add many proxies from pasted text — one per line, OR extracted from
+    arbitrary output like `docker ps` (port mappings become http://127.0.0.1:PORT).
+    Returns the rows added and any per-line errors so the UI can report them.
+    Duplicates already in the pool are skipped silently.
     """
-    added, errors = [], []
-    for raw in text.splitlines():
-        raw = raw.strip()
-        if not raw or raw.startswith("#"):
+    added, errors, skipped = [], [], 0
+    existing = {p["raw"] for p in list_proxies()}
+    for line in text.splitlines():
+        raw = _extract_proxy_line(line)
+        if not raw:
+            continue
+        if raw in existing:
+            skipped += 1
             continue
         try:
             added.append(add_proxy(raw))
+            existing.add(raw)
         except Exception as e:  # noqa: BLE001 — surface bad lines, keep going
-            errors.append({"line": raw, "error": str(e)})
-    return {"added": added, "errors": errors}
+            errors.append({"line": line.strip(), "error": str(e)})
+    return {"added": added, "errors": errors, "skipped": skipped}
 
 
 def _next_proxy_label(prefix: str = "proxy") -> str:
