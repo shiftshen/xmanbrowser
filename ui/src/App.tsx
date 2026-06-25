@@ -30,10 +30,11 @@ const PROXY_OFFERS: { tierKey: string; logo: string; alt: string; subKey: string
 // Affiliate CTA shown when a detection comes back dirty (→ buy clean proxies).
 const CLEAN_IP_CTA = PROXY_OFFERS[0]; // 711Proxy
 
-// Default page a profile opens to (instead of a blank tab). whoer.net instantly
-// shows the profile's IP/fingerprint/leak state — on-brand for a fingerprint
-// browser and a free, zero-setup home.
-const HOME_URL = "https://whoer.net/";
+// Default page a profile opens to (instead of a blank tab). A neutral, light
+// page — NOT a fingerprint checker: whoer.net's aggressive WebGL/canvas probing
+// crashes Camoufox's GPU process on some Windows machines. To inspect a
+// profile's IP/fingerprint, use the per-card 🛡 check (it doesn't launch a tab).
+const HOME_URL = "https://www.google.com/";
 
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
 function avatarColor(s: string) {
