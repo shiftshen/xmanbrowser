@@ -64,6 +64,19 @@ binding, and timezone/locale that follow the proxy exit IP.
 > so Chromium profiles on the same machine share those. For *unique* fingerprints
 > use Camoufox; use Chromium when Chrome-ness and bot-check evasion matter more.
 
+## Proxies
+
+- **Types:** `http`, `https`, `socks5` (and `socks5h`). Bind one per profile, or
+  manage a **pool** and pick by label; **providers** auto-fetch proxies from an
+  API or a rotating gateway, and a health check auto-disables dead ones.
+- **Paste any format — auto-detected:**
+  `scheme://user:pass@host:port`, `host:port:user:pass`, or `host:port`
+  (scheme defaults to http). Bulk-paste many, one per line.
+- **Geo follows the proxy.** On launch the exit IP is looked up (several
+  providers, with fallback) and the browser's **timezone, locale/language, and
+  geolocation** are set to match the exit country — so you never get a tell like
+  `timezone=Asia/Bangkok` with `language=de-DE`.
+
 ## How it works
 
 - **Fingerprint identity is generated once and persisted.** Camoufox's config

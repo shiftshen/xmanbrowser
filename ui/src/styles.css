@@ -232,6 +232,12 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .geo.bad { border-color: rgba(240,83,63,.4); color: #ff8a7d; }
 .modal .foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
 
+/* proxy auto-detect */
+.detected { margin-top: 8px; font-size: 12px; }
+.detected.ok { color: #9ee6a6; }
+.detected.bad { color: #ff8a7d; }
+.detected .tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; background: var(--accent-soft); color: #cfe0ff; padding: 1px 6px; border-radius: 5px; margin-right: 4px; }
+
 /* engine download progress */
 .progress { height: 10px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); overflow: hidden; margin-top: 16px; }
 .progress .bar { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--accent), #7b5cff); transition: width .4s ease; }

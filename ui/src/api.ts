@@ -171,6 +171,9 @@ export const api = {
 
   checkProxy: (proxy: string) =>
     xfetch(`${BASE}/proxy/check?proxy=${encodeURIComponent(proxy)}`).then((r) => j<GeoInfo>(r)),
+  parseProxy: (raw: string) =>
+    xfetch(`${BASE}/proxy/parse?raw=${encodeURIComponent(raw)}`).then((r) =>
+      j<{ ok: boolean; error?: string; scheme?: string; host?: string; port?: number; has_auth?: boolean }>(r)),
 
   exportAll: () => xfetch(`${BASE}/export`).then((r) => j<any[]>(r)),
 

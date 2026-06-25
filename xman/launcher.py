@@ -18,6 +18,15 @@ from typing import Any, Dict, Optional
 from .profile import Profile
 
 
+def _safe_geo(proxy):
+    """Resolve a proxy's exit geo, or None if it can't be reached."""
+    try:
+        from .proxy import check_and_locate
+        return check_and_locate(proxy)
+    except Exception:
+        return None
+
+
 # ----------------------------- Camoufox -----------------------------
 
 def build_launch_options(
@@ -42,7 +51,17 @@ def build_launch_options(
     proxy = profile.proxy
     if proxy:
         opts["proxy"] = proxy.to_camoufox()
-        opts["geoip"] = True
+        # Resolve the exit geo once so timezone AND language stay consistent.
+        # Pass the exact IP to Camoufox (it derives tz/geolocation/WebRTC IP) and
+        # pin a country-appropriate locale ourselves — Camoufox's auto locale can
+        # pick odd values (e.g. bar-DE for a Thai exit).
+        geo = _safe_geo(proxy)
+        if geo and geo.ip:
+            from .proxy import locale_for_country
+            opts["geoip"] = geo.ip
+            opts["locale"] = locale_for_country(geo.country_code)
+        else:
+            opts["geoip"] = True
     if not spec.webgl2_enabled:
         opts.setdefault("firefox_user_prefs", {})["webgl.enable-webgl2"] = False
     return opts
@@ -138,17 +157,16 @@ class _ChromiumContext:
         proxy = prof.proxy
         if proxy:
             kw["proxy"] = proxy.to_camoufox()
-            # Geo follows the proxy exit IP (timezone + geolocation), like Camoufox geoip.
-            try:
-                from .proxy import check_and_locate
-                geo = check_and_locate(proxy)
+            # Geo follows the proxy exit IP (timezone + locale + geolocation).
+            geo = _safe_geo(proxy)
+            if geo:
+                from .proxy import locale_for_country
                 if geo.timezone:
                     kw["timezone_id"] = geo.timezone
+                kw["locale"] = locale_for_country(geo.country_code)
                 if geo.latitude is not None and geo.longitude is not None:
                     kw["geolocation"] = {"latitude": geo.latitude, "longitude": geo.longitude}
                     kw["permissions"] = ["geolocation"]
-            except Exception:
-                pass
 
         self._pw = sync_playwright().start()
         self._ctx = self._pw.chromium.launch_persistent_context(**kw)

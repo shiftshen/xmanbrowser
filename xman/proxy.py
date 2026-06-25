@@ -99,27 +99,82 @@ def _httpx_proxy(proxy: Optional[Proxy]) -> Optional[str]:
     return proxy.full_url() if proxy else None
 
 
+# A sensible primary locale per country so the browser's language stays
+# consistent with the proxy's exit timezone (avoids tells like tz=Asia/Bangkok
+# with lang=bar-DE). Falls back to en-US.
+_COUNTRY_LOCALE = {
+    "US": "en-US", "GB": "en-GB", "CA": "en-CA", "AU": "en-AU", "IE": "en-IE",
+    "TH": "th-TH", "SG": "en-SG", "MY": "ms-MY", "ID": "id-ID", "VN": "vi-VN",
+    "PH": "en-PH", "JP": "ja-JP", "KR": "ko-KR", "CN": "zh-CN", "HK": "zh-HK",
+    "TW": "zh-TW", "IN": "en-IN", "DE": "de-DE", "FR": "fr-FR", "ES": "es-ES",
+    "IT": "it-IT", "NL": "nl-NL", "PT": "pt-PT", "BR": "pt-BR", "RU": "ru-RU",
+    "PL": "pl-PL", "TR": "tr-TR", "SE": "sv-SE", "NO": "nb-NO", "DK": "da-DK",
+    "FI": "fi-FI", "CH": "de-CH", "AT": "de-AT", "BE": "nl-BE", "MX": "es-MX",
+    "AR": "es-AR", "AE": "ar-AE", "SA": "ar-SA", "ZA": "en-ZA", "NZ": "en-NZ",
+}
+
+
+def locale_for_country(country_code: Optional[str]) -> str:
+    return _COUNTRY_LOCALE.get((country_code or "").upper(), "en-US")
+
+
+# Geo providers tried in order (all free, no key, HTTPS). Each returns a parser
+# that maps the JSON to a GeoInfo. Multiple providers because any single one can
+# rate-limit or 500 for a given exit IP (e.g. datacenter/VPN ranges).
+def _parse_ipwho(d: dict) -> Optional[GeoInfo]:
+    if d.get("success") is False:
+        return None
+    return GeoInfo(ip=d.get("ip"), country=d.get("country"), country_code=d.get("country_code"),
+                   city=d.get("city"), timezone=(d.get("timezone") or {}).get("id"),
+                   latitude=d.get("latitude"), longitude=d.get("longitude"))
+
+
+def _parse_ipinfo(d: dict) -> Optional[GeoInfo]:
+    if not d.get("ip"):
+        return None
+    loc = (d.get("loc") or ",").split(",")
+    lat = float(loc[0]) if loc[0] else None
+    lon = float(loc[1]) if len(loc) > 1 and loc[1] else None
+    return GeoInfo(ip=d.get("ip"), country=d.get("country"), country_code=d.get("country"),
+                   city=d.get("city"), timezone=d.get("timezone"), latitude=lat, longitude=lon)
+
+
+def _parse_ipapi(d: dict) -> Optional[GeoInfo]:
+    if d.get("status") != "success":
+        return None
+    return GeoInfo(ip=d.get("query"), country=d.get("country"), country_code=d.get("countryCode"),
+                   city=d.get("city"), timezone=d.get("timezone"),
+                   latitude=d.get("lat"), longitude=d.get("lon"))
+
+
+_GEO_PROVIDERS = [
+    ("https://ipwho.is/", _parse_ipwho),
+    ("https://ipinfo.io/json", _parse_ipinfo),
+    ("http://ip-api.com/json/?fields=status,message,country,countryCode,city,timezone,lat,lon,query", _parse_ipapi),
+]
+
+
 def check_and_locate(proxy: Optional[Proxy], timeout: float = 15.0) -> GeoInfo:
     """Verify the proxy works and return the exit IP + geo.
 
-    Uses ip-api.com (free, no key) through the proxy so the geo reflects the
-    *exit* node — the same vantage point the browser will use. Raises on failure.
+    The lookup goes *through* the proxy so the geo reflects the exit node — the
+    same vantage point the browser will use. Tries several geo providers so one
+    flaky/blocked service doesn't fail an otherwise-working proxy.
     """
     proxy_url = _httpx_proxy(proxy)
-    with httpx.Client(proxy=proxy_url, timeout=timeout) as client:
-        r = client.get(
-            "http://ip-api.com/json/?fields=status,message,country,countryCode,city,timezone,lat,lon,query"
-        )
-        r.raise_for_status()
-        data = r.json()
-    if data.get("status") != "success":
-        raise RuntimeError(f"geo lookup failed: {data.get('message', data)}")
-    return GeoInfo(
-        ip=data["query"],
-        country=data.get("country"),
-        country_code=data.get("countryCode"),
-        city=data.get("city"),
-        timezone=data.get("timezone"),
-        latitude=data.get("lat"),
-        longitude=data.get("lon"),
-    )
+    last_err: Optional[str] = None
+    with httpx.Client(proxy=proxy_url, timeout=timeout, follow_redirects=True) as client:
+        for url, parser in _GEO_PROVIDERS:
+            try:
+                r = client.get(url)
+                if r.status_code != 200:
+                    last_err = f"{url.split('/')[2]} -> HTTP {r.status_code}"
+                    continue
+                geo = parser(r.json())
+                if geo and geo.ip:
+                    return geo
+                last_err = f"{url.split('/')[2]} -> unexpected response"
+            except Exception as e:  # noqa: BLE001 — try the next provider
+                last_err = f"{url.split('/')[2]} -> {str(e)[:60]}"
+                continue
+    raise RuntimeError(f"could not reach any geo service through the proxy ({last_err})")

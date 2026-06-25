@@ -691,7 +691,16 @@ function ProxyModal(props: {
   const [group, setGroup] = useState(p?.group ?? "");
   const [geo, setGeo] = useState<GeoInfo | null>(null);
   const [geoErr, setGeoErr] = useState<string | null>(null);
+  const [detected, setDetected] = useState<{ ok: boolean; error?: string; scheme?: string; host?: string; port?: number; has_auth?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Auto-detect the pasted proxy format (debounced) so the user sees what we parsed.
+  useEffect(() => {
+    const v = raw.trim();
+    if (!v) { setDetected(null); return; }
+    const t = setTimeout(() => { api.parseProxy(v).then(setDetected).catch(() => {}); }, 250);
+    return () => clearTimeout(t);
+  }, [raw]);
 
   const test = async () => {
     if (!raw) return;
@@ -719,11 +728,19 @@ function ProxyModal(props: {
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="proxy01" />
         </div>
         <div className="field">
-          <label>Address (http / socks5)</label>
+          <label>Address <span className="hint">· paste any format — auto-detected</span></label>
           <div className="inline">
-            <input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="socks5://user:pass@host:1080" />
+            <input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="socks5://user:pass@host:1080  ·  host:port:user:pass  ·  http://host:8080" />
             <button onClick={test} disabled={busy || !raw}>Test</button>
           </div>
+          {detected && (detected.ok ? (
+            <div className="detected ok">
+              detected <span className="tag">{detected.scheme}</span> {detected.host}:{detected.port}
+              {detected.has_auth ? <span className="faint"> · with auth</span> : <span className="faint"> · no auth</span>}
+            </div>
+          ) : (
+            <div className="detected bad">unrecognized format — use scheme://host:port, host:port:user:pass, or host:port</div>
+          ))}
           {geo && <div className="geo ok">✓ exit <b>{geo.ip}</b> — {geo.city}, {geo.country} ({geo.country_code}) · {geo.timezone}</div>}
           {geoErr && <div className="geo bad">✗ {geoErr}</div>}
         </div>

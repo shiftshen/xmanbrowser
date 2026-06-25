@@ -50,6 +50,26 @@ jobs:
           pip install -e . pyinstaller
           bash tools/build_sidecar.sh ${{ matrix.target }}
 
+      - name: Smoke-test the backend on the real OS
+        shell: bash
+        run: |
+          SIDE="ui/src-tauri/sidecar/xman-server"
+          [ -f "$SIDE.exe" ] && SIDE="$SIDE.exe"
+          XMAN_PORT=8799 "$SIDE" &
+          SPID=$!
+          ok=
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8799/api/health >/dev/null 2>&1; then ok=1; break; fi
+            sleep 1
+          done
+          [ -n "$ok" ] || { echo "sidecar did not come up"; exit 1; }
+          curl -sf http://127.0.0.1:8799/api/health | grep -q '"ok":true'
+          curl -sf -X POST http://127.0.0.1:8799/api/profiles \
+            -H 'content-type: application/json' -d '{"os":"windows","engine":"chromium"}' | grep -q '"name"'
+          curl -sf http://127.0.0.1:8799/api/engine/status | grep -q chromium
+          kill $SPID 2>/dev/null || true
+          echo "✅ backend smoke test passed on ${{ matrix.os }}"
+
       - name: Install UI deps
         working-directory: ui
         run: npm ci || npm install

@@ -390,6 +390,20 @@ def check_pool_proxy(pid: str):
 
 # ---------- ad-hoc proxy check (not in pool) ----------
 
+@app.get("/api/proxy/parse")
+def proxy_parse(raw: str):
+    """Auto-detect a pasted proxy's format (no network). Returns the normalized
+    pieces so the UI can confirm what it understood."""
+    try:
+        p = Proxy.parse(raw)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    return {
+        "ok": True, "scheme": p.scheme, "host": p.host, "port": p.port,
+        "has_auth": bool(p.username), "normalized": p.full_url(),
+    }
+
+
 @app.get("/api/proxy/check")
 def proxy_check(proxy: str):
     try:

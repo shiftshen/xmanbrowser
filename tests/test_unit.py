@@ -33,6 +33,15 @@ def test_proxy_bad():
         Proxy.parse("")
 
 
+def test_locale_for_country():
+    from xman.proxy import locale_for_country
+    assert locale_for_country("TH") == "th-TH"
+    assert locale_for_country("US") == "en-US"
+    assert locale_for_country("jp") == "ja-JP"
+    assert locale_for_country(None) == "en-US"
+    assert locale_for_country("ZZ") == "en-US"  # unknown -> sane default
+
+
 # ---------- fingerprint generation / consistency ----------
 
 def test_seed_is_reproducible_via_json():
