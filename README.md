@@ -177,10 +177,8 @@ XmanBrowser supports proxy pools, rotating gateways, and isolated browser
 profiles. Datacenter/VPN IPs get flagged by anti-fraud — for clean results use
 residential / ISP / 4G proxies:
 
-- **Budget · 中文/支付宝/USDT:** IP2World
-- **High commission · residential:** Proxy-Seller
-- **Lifetime commission · easy:** IPRoyal
-- **Enterprise-grade:** Oxylabs
+- **High-quality residential · 中文/支付宝:** [711Proxy](https://www.711proxy.com/signup?code=812411) — 90M+ residential IPs, anti-fraud grade
+- **Budget · free tier to start:** [Webshare](https://www.webshare.io/?referral_code=a408k2bpaeid) — 10 free proxies, pay-as-you-grow, card/PayPal
 
 _Disclosure: these are affiliate links. If you buy through them, XmanBrowser may
 earn a commission to support open-source development._

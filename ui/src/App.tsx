@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+import logo711 from "./assets/offers/711proxy.svg";
+import logoWebshare from "./assets/offers/webshare.svg";
 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
 
-// Proxy affiliate placements — replace each href with your referral link.
-// Picked for Chinese-friendly payment + commission; tweak freely.
-const PROXY_OFFERS: { tier: string; label: string; sub: string; href: string }[] = [
-  { tier: "便宜入门", label: "IP2World", sub: "中文 · 支付宝/微信/USDT · SOCKS5", href: "https://www.ip2world.com/?ref=YOUR_ID" },
-  { tier: "高佣金住宅", label: "Proxy-Seller", sub: "residential up to 50% commission", href: "https://proxy-seller.com/?partner=YOUR_ID" },
-  { tier: "大牌·终身佣金", label: "IPRoyal", sub: "10% lifetime · crypto/card", href: "https://iproyal.com/?r=YOUR_ID" },
-  { tier: "企业级", label: "Oxylabs", sub: "premium · enterprise", href: "https://oxylabs.io/?a=YOUR_ID" },
+// Proxy affiliate placements (referral links). Two picks: one premium /
+// Chinese-payment-friendly, one budget with a free tier.
+const PROXY_OFFERS: { tier: string; logo: string; alt: string; sub: string; href: string }[] = [
+  { tier: "高质量住宅", logo: logo711, alt: "711Proxy", sub: "9000万+住宅IP · 中文/支付宝 · 抗风控", href: "https://www.711proxy.com/signup?code=812411" },
+  { tier: "便宜入门", logo: logoWebshare, alt: "Webshare", sub: "免费10个代理起 · 按量计费 · 卡/PayPal", href: "https://www.webshare.io/?referral_code=a408k2bpaeid" },
 ];
 
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
@@ -456,7 +456,7 @@ function ProxiesView(props: {
               {PROXY_OFFERS.map((o) => (
                 <a className="offer-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" onClick={() => setOffersOpen(false)}>
                   <span className="offer-tier">{o.tier}</span>
-                  <span className="offer-label">{o.label}</span>
+                  <img className="offer-logo" src={o.logo} alt={o.alt} />
                   <span className="offer-sub">{o.sub}</span>
                 </a>
               ))}
