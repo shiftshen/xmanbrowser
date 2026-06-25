@@ -96,7 +96,13 @@ def _generate(os: str, screen: Optional[tuple[int, int]]) -> FingerprintSpec:
     # loop in generate_spec() covers that.
     screen_cons = Screen(min_width=w, max_width=w, min_height=h, max_height=h)
 
-    ff_version = installed_verstr().split(".", 1)[0]
+    # Firefox major version for the UA. Reading it needs the Camoufox browser to
+    # be fetched; on first run it isn't yet (it downloads on first launch), so
+    # fall back to a recent stable instead of failing profile creation.
+    try:
+        ff_version = installed_verstr().split(".", 1)[0]
+    except Exception:
+        ff_version = "133"
 
     # 1. Coherent base fingerprint (UA, platform, hardware, screen) from BrowserForge.
     bf = generate_fingerprint(screen=screen_cons, os=os)
