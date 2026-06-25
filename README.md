@@ -15,6 +15,31 @@ It is a free, self-hostable alternative to AdsPower / BitBrowser / GoLogin for
 **legitimate** use: multi-account management, data collection, QA/automation
 testing, and privacy browsing.
 
+## Features
+
+- **Isolated profiles** — each profile is its own browser environment: unique
+  fingerprint, own proxy, own cookie/storage jar. Create, clone, edit, search,
+  group, import/export. Launch/stop each independently, or all at once.
+- **Two engines per profile** — **Camoufox** (Firefox, engine-level spoofing →
+  *unique* WebGL/canvas/font fingerprint) or **Chromium** (real Chrome via
+  patchright, automation-leak patched). Pick at creation.
+- **Smart proxy handling** — paste almost any format (it auto-detects host /
+  port / user / pass regardless of order or separator), bulk-import lists, keep a
+  health-checked pool, or auto-fetch from a provider API / rotating gateway.
+- **Geo follows the proxy** — timezone, locale/language, geolocation and WebRTC
+  IP are set from the proxy's exit IP at launch, so you never leak a mismatch
+  like `timezone=Asia/Bangkok` + `language=de-DE`.
+- **One-click environment check** — score the current egress (0–100) from
+  aggregated signals (geo + datacenter/proxy/mobile flags) and see IP · region ·
+  ISP · IP type inline, per profile and across the whole proxy pool. Datacenter /
+  VPN IPs are flagged so you know when an environment will trip anti-fraud.
+- **Default home = whoer.net** — every profile opens to an instant
+  IP/fingerprint self-check (configurable in source).
+- **Hardened local API** — the control service refuses cross-origin calls from
+  any webpage you visit (see [Security](#security)).
+- **Local-first & free** — no account, no cloud, no telemetry. Everything lives
+  under `~/.xman/`. MIT-licensed.
+
 ## Legal boundary
 
 XMan only provides **environment isolation + fingerprint consistency + proxy
@@ -37,6 +62,11 @@ operators. Use it only where you are authorized to.
   Tauri shell that auto-starts the backend.
 - **M4 done** — geoip auto-consistency (timezone/locale/WebRTC IP follow the proxy
   exit at launch), import/export, and a packaged macOS `.dmg`.
+- **M5 done** — one-click environment/IP detection with a 0–100 trust score,
+  per-profile and pool-wide; whoer.net default home; signed + notarized macOS and
+  Windows installers via CI.
+- **M6 done** — local-API hardening (custom-header + Host + CORS guard against
+  malicious-webpage drive-by) following an independent security audit.
 
 ## Desktop app
 
@@ -130,15 +160,34 @@ xman import backup.json
 xman serve
 ```
 
-### REST API (M2)
+### REST API
 
 `GET /api/health` · `GET/POST /api/profiles` · `GET/PATCH/DELETE /api/profiles/{id}` ·
-`POST /api/profiles/{id}/clone|launch|stop` · `GET /api/running` · `POST /api/stop-all` ·
-`GET /api/proxy/check?proxy=...` · `GET /api/export` · `POST /api/import`. Binds to
-`127.0.0.1` only (local-first; not a network service).
+`POST /api/profiles/{id}/clone|launch|stop` · `POST /api/batch/launch|stop` ·
+`GET /api/running` · `POST /api/stop-all` · `GET/POST /api/proxies` ·
+`GET /api/proxy/check?proxy=...` · `GET /api/detect?proxy=...` (0–100 trust score) ·
+`GET/POST /api/providers` · `GET /api/export` · `POST /api/import`.
+Binds to `127.0.0.1` only (local-first; not a network service).
 
 Data lives under `~/.xman/` (override with `XMAN_HOME`):
 `profiles/<id>.json` (fingerprint + proxy) and `userdata/<id>/` (isolated storage).
+
+## Security
+
+The control API binds to `127.0.0.1`, but any webpage you open in a normal
+browser can still reach `127.0.0.1:8723`. To stop a malicious page from driving
+the app, every `/api/*` call (except `/api/health`) must:
+
+- carry the `X-XMan-Client: xman` header — a cross-origin page can't add a custom
+  header without a CORS preflight, which the API denies (its CORS allowlist is
+  the app's own origins, **not** `*`);
+- arrive with a loopback `Host` header — defeats DNS-rebinding.
+
+The desktop UI sends the header automatically. If you call the API yourself, add
+`-H "X-XMan-Client: xman"`. Set `XMAN_API_OPEN=1` to disable the guard for trusted
+local scripting/tests. Proxy credentials are currently stored locally in plaintext
+SQLite under `~/.xman/` — keychain-backed storage is on the roadmap; protect that
+directory accordingly.
 
 ## Verifying
 
