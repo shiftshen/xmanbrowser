@@ -15,9 +15,16 @@ cd "$(dirname "$0")/.."
 
 IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Chinda Lorcharoen (PGJ5BY2925)}"
 PROFILE="${NOTARY_PROFILE:-xbrowser-notary}"
+UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
 VERSION="$(python3 -c "import json;print(json.load(open('ui/src-tauri/tauri.conf.json'))['version'])")"
 APP="ui/src-tauri/target/release/bundle/macos/XmanBrowser.app"
 DMG="/tmp/XmanBrowser_${VERSION}_aarch64.dmg"
+
+# tauri build signs the updater artifact it generates (createUpdaterArtifacts),
+# so it needs the key in the env or it errors. We re-make + re-sign the tar.gz
+# from the NOTARIZED app in step 8, so this just satisfies the build.
+export TAURI_SIGNING_PRIVATE_KEY="$(cat "$UPD_KEY")"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 
 echo "▶ releasing XmanBrowser $VERSION (arm64)"
 
