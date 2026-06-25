@@ -742,6 +742,7 @@ function ProfileModal(props: {
 }) {
   const p = props.profile;
   const isNew = !p;
+  const t = useT();
   const [name, setName] = useState(p?.name ?? "");
   const [os, setOs] = useState(p?.os ?? "macos");
   const [engine, setEngine] = useState(p?.engine ?? "camoufox");
@@ -797,17 +798,17 @@ function ProfileModal(props: {
   return (
     <div className="overlay" onClick={props.onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{isNew ? "New profile" : `Edit ${p!.name}`}</h2>
-        <div className="desc">An isolated browser environment with its own fingerprint, proxy and storage.</div>
+        <h2>{isNew ? t("pm.new") : t("pm.edit", p!.name)}</h2>
+        <div className="desc">{t("pm.desc")}</div>
 
         <div className="field">
-          <label>Name <span className="hint">· auto-generated, editable</span></label>
+          <label>{t("pm.name")} <span className="hint">· {t("pm.nameHint")}</span></label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="xman01" />
         </div>
 
         <div className="inline">
           <div className="field" style={{ flex: 1 }}>
-            <label>Operating system</label>
+            <label>{t("pm.os")}</label>
             <select value={os} onChange={(e) => setOs(e.target.value)} disabled={!isNew}>
               <option value="macos">macOS</option>
               <option value="windows">Windows</option>
@@ -815,64 +816,62 @@ function ProfileModal(props: {
             </select>
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label>Engine {!isNew && <span className="hint">· fixed</span>}</label>
+            <label>{t("pm.engine")} {!isNew && <span className="hint">· {t("pm.fixed")}</span>}</label>
             <select value={engine} onChange={(e) => setEngine(e.target.value)} disabled={!isNew}>
-              <option value="camoufox">Camoufox · unique fingerprint (recommended)</option>
-              <option value="chromium">Chromium · real Chrome, shared fingerprint</option>
+              <option value="camoufox">{t("pm.camoufox")}</option>
+              <option value="chromium">{t("pm.chromium")}</option>
             </select>
           </div>
         </div>
         {isNew && (
           <div className="hint" style={{ marginTop: -8, marginBottom: 14 }}>
-            {engine === "camoufox"
-              ? "Firefox-based, engine-level spoofing — each profile gets a unique WebGL/canvas/font fingerprint."
-              : "Real Chrome via patchright (no automation tells). Profiles share the machine's hardware fingerprint; differ by UA / cookies / proxy."}
+            {engine === "camoufox" ? t("pm.camoufoxHint") : t("pm.chromiumHint")}
           </div>
         )}
 
         <div className="field">
-          <label>Group</label>
+          <label>{t("pm.group")}</label>
           <div className="inline">
             <select value={group} onChange={(e) => setGroup(e.target.value)}>
               {props.groups.map((g) => <option key={g.name} value={g.name}>{g.name}</option>)}
               {!props.groups.find((g) => g.name === group) && <option value={group}>{group}</option>}
             </select>
-            <input style={{ flex: 1 }} placeholder="or new group…" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
+            <input style={{ flex: 1 }} placeholder={t("pm.newGroupPh")} value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
           </div>
         </div>
 
         <div className="field">
-          <label>Proxy <span className="hint">· timezone & locale auto-follow its exit IP</span></label>
+          <label>{t("card.proxy")} <span className="hint">· {t("pm.proxyHint")}</span></label>
           <select value={proxySel} onChange={(e) => { setProxySel(e.target.value); setGeo(null); setGeoErr(null); }}>
-            <option value={NONE}>None (direct connection)</option>
+            <option value={NONE}>{t("pm.none")}</option>
             {props.proxies.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}{x.last_cc ? ` — ${x.last_cc}` : ""} ({x.raw.split("://")[0]})
               </option>
             ))}
-            <option value={CUSTOM}>Custom (one-off)…</option>
+            <option value={CUSTOM}>{t("pm.custom")}</option>
           </select>
           {proxySel === CUSTOM && (
             <div className="inline" style={{ marginTop: 8 }}>
               <input placeholder="socks5://user:pass@host:1080" value={customProxy} onChange={(e) => setCustomProxy(e.target.value)} />
-              <button onClick={testProxy} disabled={busy || !customProxy}>Test</button>
+              <button onClick={testProxy} disabled={busy || !customProxy}>{t("pm.test")}</button>
             </div>
           )}
           {proxySel !== CUSTOM && proxySel !== NONE && (
-            <button className="sm" style={{ marginTop: 8, alignSelf: "flex-start" }} onClick={testProxy} disabled={busy}>Test this proxy</button>
+            <button className="sm" style={{ marginTop: 8, alignSelf: "flex-start" }} onClick={testProxy} disabled={busy}>{t("pm.testThis")}</button>
           )}
           {geo && <div className="geo ok">✓ exit <b>{geo.ip}</b> — {geo.city}, {geo.country} ({geo.country_code}) · {geo.timezone}</div>}
           {geoErr && <div className="geo bad">✗ {geoErr}</div>}
         </div>
 
         <div className="field">
-          <label>Note</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" />
+          <label>{t("pm.note")}</label>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("pm.optional")} />
         </div>
 
         <div className="foot">
-          <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={save} disabled={busy}>{busy ? "Saving…" : isNew ? "Create" : "Save"}</button>
+          <button onClick={props.onClose}>{t("dlg.cancel")}</button>
+          <button className="primary" onClick={save} disabled={busy}>{busy ? t("pm.saving") : isNew ? t("pm.create") : t("pm.save")}</button>
         </div>
       </div>
     </div>
