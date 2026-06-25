@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+import logoShield from "./assets/logo-shield.png";
 import logo711 from "./assets/offers/711proxy.svg";
 import logoWebshare from "./assets/offers/webshare.svg";
 
@@ -22,26 +23,7 @@ function avatarColor(s: string) {
 const initials = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() || "·";
 
 function BrandMark() {
-  return (
-    <svg className="mark" width="34" height="34" viewBox="0 0 1024 1024" aria-hidden>
-      <defs>
-        <linearGradient id="bm-bg" x1="120" y1="80" x2="900" y2="980" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#5B8DEF" /><stop offset="0.55" stopColor="#4F6BFF" /><stop offset="1" stopColor="#8A5CFF" />
-        </linearGradient>
-        <linearGradient id="bm-x" x1="320" y1="300" x2="710" y2="740" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#fff" /><stop offset="1" stopColor="#E6EEFF" />
-        </linearGradient>
-      </defs>
-      <rect x="80" y="80" width="864" height="864" rx="208" fill="url(#bm-bg)" />
-      <g stroke="#fff" strokeOpacity="0.3" fill="none">
-        <circle cx="512" cy="512" r="300" strokeWidth="14" />
-        <ellipse cx="512" cy="512" rx="300" ry="120" strokeWidth="11" />
-      </g>
-      <g stroke="url(#bm-x)" strokeWidth="74" strokeLinecap="round">
-        <line x1="376" y1="376" x2="648" y2="648" /><line x1="648" y1="376" x2="376" y2="648" />
-      </g>
-    </svg>
-  );
+  return <img className="mark" src={logoShield} width={34} height={34} alt="XmanBrowser" />;
 }
 
 export function App() {
