@@ -55,7 +55,9 @@ jobs:
         run: |
           SIDE="ui/src-tauri/sidecar/xman-server"
           [ -f "$SIDE.exe" ] && SIDE="$SIDE.exe"
-          XMAN_PORT=8799 "$SIDE" &
+          # XMAN_API_OPEN=1 disables the browser-origin guard (custom header +
+          # Host check) for this trusted in-CI smoke test; never set in releases.
+          XMAN_PORT=8799 XMAN_API_OPEN=1 "$SIDE" &
           SPID=$!
           ok=
           for i in $(seq 1 40); do
