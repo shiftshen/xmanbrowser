@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { save as dlgSave, open as dlgOpen } from "@tauri-apps/plugin-dialog";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
 import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 import { useT, getLang, setLang } from "./i18n";
@@ -73,6 +75,26 @@ export function App() {
   const [promptDlg, setPromptDlg] = useState<{ msg: string; placeholder: string; onYes: (v: string) => void } | null>(null);
   const askConfirm = (msg: string, onYes: () => void) => setConfirmDlg({ msg, onYes });
   const askPrompt = (msg: string, onYes: (v: string) => void, placeholder = "") => setPromptDlg({ msg, placeholder, onYes });
+  // In-app auto-update: check the GitHub release manifest on startup; if newer,
+  // a banner downloads + installs + relaunches.
+  const [update, setUpdate] = useState<any>(null);
+  const [updPct, setUpdPct] = useState<number | null>(null);
+  useEffect(() => {
+    if (!_inTauri) return;
+    checkUpdate().then((u) => { if (u) setUpdate(u); }).catch(() => { /* offline / no update */ });
+  }, []);
+  const doUpdate = async () => {
+    if (!update) return;
+    setUpdPct(0);
+    try {
+      let total = 0, got = 0;
+      await update.downloadAndInstall((e: any) => {
+        if (e.event === "Started") total = e.data?.contentLength ?? 0;
+        else if (e.event === "Progress") { got += e.data?.chunkLength ?? 0; setUpdPct(total ? Math.round((got / total) * 100) : 0); }
+      });
+      await relaunch();
+    } catch (e: any) { flash(e.message || "update failed", true); setUpdPct(null); }
+  };
   const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = useCallback((msg: string, err = false) => {
@@ -269,6 +291,20 @@ export function App() {
 
       {/* ---------------- main ---------------- */}
       <div className="main">
+        {update && (
+          <div className="update-banner">
+            <span>🎉 {t("upd.available", update.version)}</span>
+            <span className="grow" />
+            {updPct == null ? (
+              <>
+                <button className="primary sm" onClick={doUpdate}>{t("upd.now")}</button>
+                <button className="sm" onClick={() => setUpdate(null)}>{t("upd.later")}</button>
+              </>
+            ) : (
+              <span className="upd-progress">{t("upd.updating", updPct)}</span>
+            )}
+          </div>
+        )}
         <div className="toolbar">
           {view === "profiles" ? (
             <h1>{group || t("nav.allProfiles")} <span className="sub">{visible.length}</span></h1>

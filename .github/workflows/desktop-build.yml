@@ -85,6 +85,12 @@ jobs:
       # on an empty cert and fails.)
       - name: Build desktop bundle
         uses: tauri-apps/tauri-action@v0
+        env:
+          # Signs the auto-updater artifacts (createUpdaterArtifacts=true) so the
+          # in-app updater accepts them. The key is project-generated, not a code-
+          # signing cert.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ui
           args: --target ${{ matrix.target }}
@@ -94,8 +100,6 @@ jobs:
         with:
           name: xman-${{ matrix.target }}
           path: |
-            ui/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            ui/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
             ui/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
-            ui/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            ui/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.sig
           if-no-files-found: ignore

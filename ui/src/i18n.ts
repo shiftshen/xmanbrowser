@@ -150,6 +150,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     "eng.downloading": "Downloading…",
     "eng.hide": "Hide",
     "eng.failed": "Download failed: {0}. Check your network and try Launch again.",
+    "upd.available": "New version {0} available",
+    "upd.now": "Update now",
+    "upd.updating": "Updating… {0}%",
+    "upd.later": "Later",
     "lang.toggle": "中文",
   },
   zh: {
@@ -298,6 +302,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     "eng.downloading": "下载中…",
     "eng.hide": "隐藏",
     "eng.failed": "下载失败:{0}。检查网络后重新点 Launch。",
+    "upd.available": "有新版本 {0}",
+    "upd.now": "立即更新",
+    "upd.updating": "更新中… {0}%",
+    "upd.later": "稍后",
     "lang.toggle": "EN",
   },
 };

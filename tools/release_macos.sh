@@ -62,9 +62,20 @@ echo "  dmg: $(du -sh "$DMG" | cut -f1)"
 echo "── [6/7] notarize (keychain profile: $PROFILE)"
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 
-echo "── [7/7] staple + verify"
+echo "── [7/8] staple + verify"
 xcrun stapler staple "$DMG"
 xcrun stapler staple "$APP"
 spctl -a -vv "$APP" 2>&1 | grep -E "source=|accepted|rejected" || true
 
-echo "✅ DONE → $DMG"
+echo "── [8/8] auto-updater artifact (tar.gz of the NOTARIZED app + updater signature)"
+UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
+TARGZ="/tmp/XmanBrowser_${VERSION}_aarch64.app.tar.gz"
+rm -f "$TARGZ" "$TARGZ.sig"
+tar czf "$TARGZ" -C "$(dirname "$APP")" "XmanBrowser.app"
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npx --prefix ui tauri signer sign -k "$UPD_KEY" "$TARGZ" >/dev/null
+echo "  updater: $TARGZ (+ .sig)"
+
+echo "✅ DONE"
+echo "   dmg     : $DMG"
+echo "   updater : $TARGZ"
+echo "   sig     : $TARGZ.sig"
