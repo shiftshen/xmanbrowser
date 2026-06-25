@@ -22,3 +22,6 @@ ui/src-tauri/gen/
 /build/
 /dist/
 *.spec
+
+# Internal review docs
+.review-*

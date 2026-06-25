@@ -1,6 +1,9 @@
-# XmanBrowser — open-source proxy & profile browser
+<p align="center">
+  <img src="brand/logo-horizontal.png" alt="XmanBrowser — Fingerprint Protection" width="440">
+</p>
 
-<sub>by **XmanX**</sub>
+<h1 align="center">XmanBrowser</h1>
+<p align="center">Open-source proxy & profile browser · <sub>by <b>XmanX</b></sub></p>
 
 XmanBrowser is a **free, open-source (MIT), local-first** fingerprint browser for macOS & Windows.
 It manages multiple isolated browser *profiles* — each with its own internally
