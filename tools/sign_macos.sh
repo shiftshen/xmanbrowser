@@ -40,9 +40,11 @@ find "$APP" -type f | while IFS= read -r f; do
 done > "$MACHO"
 echo "    $(wc -l < "$MACHO") Mach-O files"
 
-echo "[2/5] signing all embedded Mach-O (parallel)…"
-# deepest paths first so nested code is signed before its container
-sort -r "$MACHO" | xargs -P6 -I{} codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$IDENTITY" {} >/dev/null 2>&1
+echo "[2/5] signing all embedded Mach-O…"
+# Low parallelism: every codesign --timestamp hits timestamp.apple.com, and -P6
+# hammers it into rate-limiting (signatures silently come back without a secure
+# timestamp). -P2 is gentle enough to stay reliable. deepest paths first.
+sort -r "$MACHO" | xargs -P2 -I{} codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$IDENTITY" {} >/dev/null 2>&1
 
 echo "[3/5] signing the bundled Camoufox browser (nested .app/.framework, --deep)…"
 # --deep recursively signs every nested helper (.app), framework, dylib AND the

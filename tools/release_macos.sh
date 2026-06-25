@@ -46,12 +46,12 @@ scan_unsigned() {
 
 echo "── [3+4/7] Developer ID deep-sign + scan gate (retry — Apple's timestamp server is flaky)"
 UNSIGNED=""
-for attempt in 1 2 3; do
+for attempt in 1 2 3 4 5 6; do
   bash tools/sign_macos.sh "$IDENTITY" "$APP" >/dev/null 2>&1 || true
   UNSIGNED="$(scan_unsigned)"
   [ -z "$UNSIGNED" ] && { echo "  ✓ all Mach-O signed (attempt $attempt)"; break; }
-  echo "  attempt $attempt: $(echo "$UNSIGNED" | grep -c . ) still unsigned (likely timestamp.apple.com rate-limit) — retrying"
-  sleep 5
+  echo "  attempt $attempt: $(echo "$UNSIGNED" | grep -c . ) still unsigned (timestamp.apple.com rate-limit) — waiting then retrying"
+  sleep 20
 done
 if [ -n "$UNSIGNED" ]; then
   echo "✗ ABORT — still unsigned after retries (notarization would fail):"
