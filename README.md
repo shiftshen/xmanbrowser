@@ -150,14 +150,13 @@ amiunique.org. Checks: same profile → stable fingerprint across launches;
 different profiles → different fingerprints; proxy IP matches timezone/locale;
 no WebRTC real-IP leak; no CDP/automation tells.
 
-## Install & first run (unsigned build)
+## Install & first run
 
-The public builds are **not yet notarized** (that needs a paid Apple Developer
-account). macOS Gatekeeper will warn on first open:
+The macOS build is **signed + notarized** (Developer ID), so it opens with no
+Gatekeeper warning — just drag `XmanBrowser.app` to Applications and launch.
 
-- **macOS:** right-click `Xbrowser.app` → **Open** → **Open** (only needed once),
-  or run `xattr -dr com.apple.quarantine /Applications/Xbrowser.app`.
-- **Windows:** SmartScreen → **More info** → **Run anyway**.
+The Windows build is signed with a self-generated key, so SmartScreen may warn on
+first run: **More info → Run anyway**.
 
 The first launch is a little slower (the OS scans the bundle once); after that the
 local engine starts in **under a second** (PyInstaller onedir — no per-launch

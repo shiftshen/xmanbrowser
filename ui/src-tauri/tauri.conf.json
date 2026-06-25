@@ -31,7 +31,7 @@
     "resources": ["sidecar/**/*"],
     "category": "DeveloperTool",
     "shortDescription": "Open-source fingerprint browser",
-    "longDescription": "Xbrowser — free & open-source fingerprint browser (powered by xmanx). Isolated profiles with consistent fingerprints, per-profile proxy, and storage isolation.",
+    "longDescription": "XmanBrowser — free & open-source fingerprint browser by XmanX. Isolated profiles with consistent fingerprints, per-profile proxy, and storage isolation.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
