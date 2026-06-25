@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Xbrowser",
+  "productName": "XmanBrowser",
   "version": "1.0.0",
   "identifier": "com.xman.fingerprint",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Xbrowser — powered by xmanx",
+        "title": "XmanBrowser — by XmanX",
         "width": 1200,
         "height": 820,
         "minWidth": 900,

@@ -4,11 +4,13 @@ import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
 
-// Proxy affiliate placements — replace the href with your referral links.
-// Keep it to two: one budget, one premium. Earn commission when users buy.
-const PROXY_OFFERS: { label: string; sub: string; href: string }[] = [
-  { label: "Residential & 4G proxies", sub: "clean IPs · pass anti-fraud", href: "https://iproyal.com/?r=YOUR_AFFILIATE_ID" },
-  { label: "Cheap SOCKS5 pool", sub: "budget · multi-account", href: "https://www.922proxy.com/?ref=YOUR_AFFILIATE_ID" },
+// Proxy affiliate placements — replace each href with your referral link.
+// Picked for Chinese-friendly payment + commission; tweak freely.
+const PROXY_OFFERS: { tier: string; label: string; sub: string; href: string }[] = [
+  { tier: "便宜入门", label: "IP2World", sub: "中文 · 支付宝/微信/USDT · SOCKS5", href: "https://www.ip2world.com/?ref=YOUR_ID" },
+  { tier: "高佣金住宅", label: "Proxy-Seller", sub: "residential up to 50% commission", href: "https://proxy-seller.com/?partner=YOUR_ID" },
+  { tier: "大牌·终身佣金", label: "IPRoyal", sub: "10% lifetime · crypto/card", href: "https://iproyal.com/?r=YOUR_ID" },
+  { tier: "企业级", label: "Oxylabs", sub: "premium · enterprise", href: "https://oxylabs.io/?a=YOUR_ID" },
 ];
 
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
@@ -176,8 +178,8 @@ export function App() {
         <div className="brand">
           <BrandMark />
           <div className="wordmark">
-            <div className="name">X<span>browser</span></div>
-            <div className="tag">powered by <b>xmanx</b></div>
+            <div className="name">Xman<span>Browser</span></div>
+            <div className="tag">by <b>XmanX</b></div>
           </div>
         </div>
 
@@ -414,6 +416,7 @@ function ProxiesView(props: {
   onCheck: (p: PoolProxy) => void; onToggle: (p: PoolProxy) => void; onDelete: (p: PoolProxy) => void;
   onAddProvider: () => void; onRefreshProvider: (p: Provider) => void; onDeleteProvider: (p: Provider) => void;
 }) {
+  const [offersOpen, setOffersOpen] = useState(false);
   const mask = (raw: string) => raw.replace(/:([^:@/]+)@/, ":••••@");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -445,13 +448,22 @@ function ProxiesView(props: {
 
       {/* get-proxies offers (affiliate) */}
       <div className="offers">
-        <span className="offers-label">Need clean IPs? Datacenter/VPN IPs get flagged — residential & 4G pass anti-fraud:</span>
-        {PROXY_OFFERS.map((o) => (
-          <a className="offer" key={o.href} href={o.href} target="_blank" rel="noreferrer">
-            <span className="offer-label">{o.label}</span>
-            <span className="offer-sub">{o.sub}</span>
-          </a>
-        ))}
+        <span className="offers-label">Need clean IPs? Datacenter/VPN IPs get flagged — residential & 4G pass anti-fraud.</span>
+        <div className="offer-dd">
+          <button className="primary sm" onClick={() => setOffersOpen((v) => !v)}>获取住宅 / 4G / ISP 代理 ▾</button>
+          {offersOpen && (
+            <div className="offer-menu" onMouseLeave={() => setOffersOpen(false)}>
+              {PROXY_OFFERS.map((o) => (
+                <a className="offer-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" onClick={() => setOffersOpen(false)}>
+                  <span className="offer-tier">{o.tier}</span>
+                  <span className="offer-label">{o.label}</span>
+                  <span className="offer-sub">{o.sub}</span>
+                </a>
+              ))}
+              <div className="offer-disc">Affiliate links — buying through them supports development.</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* pool table */}

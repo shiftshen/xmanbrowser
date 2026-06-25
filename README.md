@@ -1,8 +1,8 @@
-# Xbrowser — open-source fingerprint browser
+# XmanBrowser — open-source proxy & profile browser
 
-<sub>powered by **xmanx**</sub>
+<sub>by **XmanX**</sub>
 
-Xbrowser is a **free, open-source (MIT), local-first** fingerprint browser for macOS & Windows.
+XmanBrowser is a **free, open-source (MIT), local-first** fingerprint browser for macOS & Windows.
 It manages multiple isolated browser *profiles* — each with its own internally
 consistent fingerprint, its own proxy, and its own cookie/storage isolation —
 built on top of [Camoufox](https://github.com/daijro/camoufox) (an open-source
@@ -171,6 +171,20 @@ CI is already wired for it — add these repo secrets and the next
 - macOS: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
   `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID`
 - Windows: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
+## Need proxies for XmanBrowser?
+
+XmanBrowser supports proxy pools, rotating gateways, and isolated browser
+profiles. Datacenter/VPN IPs get flagged by anti-fraud — for clean results use
+residential / ISP / 4G proxies:
+
+- **Budget · 中文/支付宝/USDT:** IP2World
+- **High commission · residential:** Proxy-Seller
+- **Lifetime commission · easy:** IPRoyal
+- **Enterprise-grade:** Oxylabs
+
+_Disclosure: these are affiliate links. If you buy through them, XmanBrowser may
+earn a commission to support open-source development._
 
 ## License
 
