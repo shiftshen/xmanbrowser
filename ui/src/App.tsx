@@ -4,6 +4,7 @@ import { save as dlgSave, open as dlgOpen } from "@tauri-apps/plugin-dialog";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 import { useT, getLang, setLang } from "./i18n";
 
@@ -79,10 +80,22 @@ export function App() {
   // a banner downloads + installs + relaunches.
   const [update, setUpdate] = useState<any>(null);
   const [updPct, setUpdPct] = useState<number | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+  const [checking, setChecking] = useState(false);
   useEffect(() => {
     if (!_inTauri) return;
+    getVersion().then(setAppVersion).catch(() => {});
     checkUpdate().then((u) => { if (u) setUpdate(u); }).catch(() => { /* offline / no update */ });
   }, []);
+  const manualCheck = async () => {
+    if (!_inTauri) return;
+    setChecking(true);
+    try {
+      const u = await checkUpdate();
+      if (u) setUpdate(u); else flash(t("upd.latest"));
+    } catch (e: any) { flash(e.message || "check failed", true); }
+    finally { setChecking(false); }
+  };
   const doUpdate = async () => {
     if (!update) return;
     setUpdPct(0);
@@ -280,12 +293,22 @@ export function App() {
         </div>
 
         <div className="spacer" />
+        {appVersion && (
+          <div className="ver-row">
+            <span className="ver">XmanBrowser v{appVersion}</span>
+            {_inTauri && (
+              <button className="ver-check" onClick={manualCheck} disabled={checking}>
+                {checking ? t("upd.checking") : t("upd.check")}
+              </button>
+            )}
+          </div>
+        )}
         <button className="lang-toggle" onClick={() => setLang(getLang() === "en" ? "zh" : "en")} title="Language / 语言">
           🌐 {t("lang.toggle")}
         </button>
         <div className="api-pill">
           <span className={`dot ${online === null ? "wait" : online ? "ok" : "bad"}`} />
-          {online === null ? t("status.connecting") : online ? `${t("status.connected")} · v${version}` : t("status.starting")}
+          {online === null ? t("status.connecting") : online ? t("status.connected") : t("status.starting")}
         </div>
       </aside>
 
