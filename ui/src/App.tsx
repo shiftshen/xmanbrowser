@@ -14,6 +14,17 @@ const PROXY_OFFERS: { tier: string; logo: string; alt: string; sub: string; href
   { tier: "便宜入门", logo: logoWebshare, alt: "Webshare", sub: "免费10个代理起 · 按量计费 · 卡/PayPal", href: "https://www.webshare.io/?referral_code=a408k2bpaeid" },
 ];
 
+// One-click fingerprint/leak checkers — launch a profile straight to one.
+const CHECK_SITES: { name: string; sub: string; url: string }[] = [
+  { name: "Whoer", sub: "匿名度 · IP/DNS/WebRTC 泄露", url: "https://whoer.net/" },
+  { name: "BrowserLeaks", sub: "WebGL · Canvas · 字体", url: "https://browserleaks.com/" },
+  { name: "Pixelscan", sub: "IP 风险分 · 数据中心检测", url: "https://pixelscan.net/" },
+  { name: "iphey", sub: "指纹一致性 · trustworthy?", url: "https://iphey.com/" },
+  { name: "CreepJS", sub: "深度指纹 · lie detection", url: "https://abrahamjuliot.github.io/creepjs/" },
+];
+// Affiliate CTA shown under the checker menu (dirty IP → buy clean proxies).
+const CLEAN_IP_CTA = PROXY_OFFERS[0]; // 711Proxy
+
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
 function avatarColor(s: string) {
   let h = 0;
@@ -42,7 +53,7 @@ export function App() {
   const [editingProxy, setEditingProxy] = useState<PoolProxy | "new" | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [detail, setDetail] = useState<Profile | null>(null);
-  const [engineDl, setEngineDl] = useState<{ engine: string; profileId: string } | null>(null);
+  const [engineDl, setEngineDl] = useState<{ engine: string; profileId: string; url?: string } | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -113,11 +124,11 @@ export function App() {
 
   // Launch a profile; if its engine isn't downloaded yet, open the progress
   // modal (which downloads, then auto-launches) instead of silently failing.
-  const launchProfile = async (p: Profile) => {
+  const launchProfile = async (p: Profile, url?: string) => {
     try {
-      const res = await api.launch(p.id);
+      const res = await api.launch(p.id, url);
       if (res.engine_downloading) {
-        setEngineDl({ engine: res.engine_downloading, profileId: p.id });
+        setEngineDl({ engine: res.engine_downloading, profileId: p.id, url });
       } else {
         flash(`launched ${p.name}`);
         refresh();
@@ -281,6 +292,7 @@ export function App() {
                   key={p.id} p={p}
                   proxies={proxies}
                   onLaunch={() => launchProfile(p)}
+                  onCheck={(url) => launchProfile(p, url)}
                   onStop={() => act(() => api.stop(p.id), `stopped ${p.name}`)}
                   onEdit={() => setEditing(p)}
                   onDetail={async () => setDetail(await api.get(p.id))}
@@ -332,8 +344,9 @@ export function App() {
           onClose={() => setEngineDl(null)}
           onReady={async () => {
             const id = engineDl.profileId;
+            const url = engineDl.url;
             setEngineDl(null);
-            try { await api.launch(id); flash("launched"); refresh(); }
+            try { await api.launch(id, url); flash("launched"); refresh(); }
             catch (e: any) { flash(e.message, true); }
           }}
         />
@@ -348,8 +361,10 @@ function ProfileCard(props: {
   p: Profile; proxies: PoolProxy[];
   onLaunch: () => void; onStop: () => void; onEdit: () => void;
   onDetail: () => void; onClone: () => void; onDelete: () => void;
+  onCheck: (url: string) => void;
 }) {
   const { p } = props;
+  const [checkOpen, setCheckOpen] = useState(false);
   const f = p.fingerprint;
   const pool = props.proxies.find((x) => x.raw === p.proxy_raw);
   const proxyOk = pool?.last_ok;
@@ -383,6 +398,22 @@ function ProfileCard(props: {
         {p.running
           ? <button className="danger" onClick={props.onStop}>Stop</button>
           : <button className="primary" onClick={props.onLaunch}>Launch</button>}
+        <div className="check-dd" onMouseLeave={() => setCheckOpen(false)}>
+          <button className="sm" title="启动到指纹/泄露检测站" onClick={() => setCheckOpen((v) => !v)}>检测 ▾</button>
+          {checkOpen && (
+            <div className="check-menu">
+              {CHECK_SITES.map((s) => (
+                <button className="check-item" key={s.url} onClick={() => { setCheckOpen(false); props.onCheck(s.url); }}>
+                  <span className="check-name">{s.name}</span>
+                  <span className="check-sub">{s.sub}</span>
+                </button>
+              ))}
+              <a className="check-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer" onClick={() => setCheckOpen(false)}>
+                IP 被标记为数据中心？换干净住宅 IP →
+              </a>
+            </div>
+          )}
+        </div>
         <button className="sm" onClick={props.onEdit}>Edit</button>
         <button className="sm" onClick={props.onClone}>Clone</button>
         <button className="sm ghost danger iconbtn" onClick={props.onDelete}>✕</button>

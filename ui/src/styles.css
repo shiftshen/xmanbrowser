@@ -250,6 +250,16 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .offer-sub { grid-area: sub; font-size: 11px; color: var(--muted); }
 .offer-disc { padding: 8px 14px; font-size: 10.5px; color: var(--faint); }
 
+/* per-card detection (checker) dropdown */
+.check-dd { position: relative; display: inline-flex; }
+.check-menu { position: absolute; left: 0; bottom: calc(100% + 6px); width: 240px; background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 11px; box-shadow: var(--shadow); z-index: 30; overflow: hidden; }
+.check-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 9px 13px; background: none; border: none; border-bottom: 1px solid var(--border); text-align: left; cursor: pointer; }
+.check-item:hover { background: var(--panel-3); }
+.check-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.check-sub { font-size: 10.5px; color: var(--muted); }
+.check-cta { display: block; padding: 9px 13px; font-size: 11px; color: #cfe0ff; background: var(--accent-soft); text-decoration: none; }
+.check-cta:hover { filter: brightness(1.15); }
+
 /* proxy auto-detect */
 .detected { margin-top: 8px; font-size: 12px; }
 .detected.ok { color: #9ee6a6; }
