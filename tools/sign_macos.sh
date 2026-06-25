@@ -47,7 +47,7 @@ done
 
 echo "[4/5] signing sidecar entry + main app binary…"
 csign "$APP/Contents/Resources/sidecar/xman-server"
-[ -f "$APP/Contents/MacOS/Xbrowser" ] && csign "$APP/Contents/MacOS/Xbrowser"
+[ -f "$APP/Contents/MacOS/app" ] && csign "$APP/Contents/MacOS/app"
 
 echo "[5/5] sealing the .app bundle with Developer ID…"
 codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$IDENTITY" "$APP"

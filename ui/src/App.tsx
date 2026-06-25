@@ -601,7 +601,7 @@ function ProxiesView(props: {
                 <b>{pv.label}</b>
                 <span className="raw" style={{ flex: 1 }}>{pv.url}</span>
                 {pv.last_count != null && <span className="faint">{pv.last_count} fetched</span>}
-                <button className="sm" onClick={() => props.onRefreshProvider(pv)}>Refresh</button>
+                <button className="sm" onClick={() => props.onRefreshProvider(pv)}>{t("tbl.refresh")}</button>
                 <button className="sm ghost danger" onClick={() => props.onDeleteProvider(pv)}>✕</button>
               </div>
             ))}
@@ -633,14 +633,14 @@ function ProxiesView(props: {
       {/* pool table */}
       {props.proxies.length === 0 ? (
         <div className="empty">
-          <div className="big">Your proxy pool is empty</div>
-          Add proxies manually, paste many via Bulk import, or attach a provider above.<br />
-          <button className="primary" style={{ marginTop: 14 }} onClick={props.onAdd}>＋ Add proxy</button>
+          <div className="big">{t("pool.empty")}</div>
+          {t("pool.emptyHint")}<br />
+          <button className="primary" style={{ marginTop: 14 }} onClick={props.onAdd}>{t("tb.addProxy")}</button>
         </div>
       ) : (
         <table className="ptable">
           <thead>
-            <tr><th></th><th>Label</th><th>Address</th><th>Status</th><th>IP type</th><th>Source</th><th></th></tr>
+            <tr><th></th><th>{t("tbl.label")}</th><th>{t("tbl.address")}</th><th>{t("tbl.status")}</th><th>{t("tbl.ipType")}</th><th>{t("tbl.source")}</th><th></th></tr>
           </thead>
           <tbody>
             {props.proxies.map((p) => (
@@ -659,23 +659,23 @@ function ProxiesView(props: {
                   {p.last_ok === true ? (
                     <span className="geo-badge ok">● {p.last_ip} · {p.last_cc} · {p.last_tz}</span>
                   ) : p.last_ok === false ? (
-                    <span className="geo-badge bad">● failed ×{p.fail_count}</span>
+                    <span className="geo-badge bad">● {t("pool.failed")} ×{p.fail_count}</span>
                   ) : (
-                    <span className="geo-badge none">○ not checked</span>
+                    <span className="geo-badge none">○ {t("pool.notChecked")}</span>
                   )}
                 </td>
                 <td>
                   {p.ip_type ? (
                     <span className={`iptype ${p.ip_type}`} title={p.isp ?? ""}>
-                      {p.ip_type === "datacenter" ? "Datacenter" : p.ip_type === "residential" ? "Residential" : "Mobile"}
+                      {p.ip_type === "datacenter" ? t("ipt.datacenter") : p.ip_type === "residential" ? t("ipt.residential") : t("ipt.mobile")}
                     </span>
                   ) : <span className="faint" style={{ fontSize: 12 }}>—</span>}
                 </td>
                 <td className="faint" style={{ fontSize: 12 }}>{p.source ?? "manual"}</td>
                 <td>
                   <div className="row-actions">
-                    <button className="sm" onClick={() => props.onCheck(p)}>Test</button>
-                    <button className="sm" onClick={() => props.onEdit(p)}>Edit</button>
+                    <button className="sm" onClick={() => props.onCheck(p)}>{t("tbl.test")}</button>
+                    <button className="sm" onClick={() => props.onEdit(p)}>{t("card.edit")}</button>
                     <button className="sm ghost danger" onClick={() => props.onDelete(p)}>✕</button>
                   </div>
                 </td>
@@ -691,6 +691,7 @@ function ProxiesView(props: {
 function ProviderModal(props: {
   onClose: () => void; onSaved: (m: string) => void; onError: (m: string) => void;
 }) {
+  const t = useT();
   const [kind, setKind] = useState("api_extract");
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
@@ -704,27 +705,27 @@ function ProviderModal(props: {
   return (
     <div className="overlay" onClick={props.onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Add proxy provider</h2>
-        <div className="desc">Pull proxies automatically. <b>API</b> fetches a list from a URL (JSON or one-per-line); <b>Gateway</b> is a single rotating endpoint.</div>
+        <h2>{t("pv.add")}</h2>
+        <div className="desc">{t("pv.desc")}</div>
         <div className="field">
-          <label>Kind</label>
+          <label>{t("pv.kind")}</label>
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="api_extract">API extract (fetch a proxy list)</option>
-            <option value="rotating_gateway">Rotating gateway (single endpoint)</option>
+            <option value="api_extract">{t("pv.kindApi")}</option>
+            <option value="rotating_gateway">{t("pv.kindGw")}</option>
           </select>
         </div>
         <div className="field">
-          <label>{kind === "api_extract" ? "List URL" : "Gateway address"}</label>
+          <label>{kind === "api_extract" ? t("pv.listUrl") : t("pv.gwAddr")}</label>
           <input value={url} onChange={(e) => setUrl(e.target.value)}
             placeholder={kind === "api_extract" ? "https://provider.com/api/proxies?token=…" : "socks5://user:pass@gw.provider.com:7000"} />
         </div>
         <div className="field">
-          <label>Label <span className="hint">· auto (provider01) if empty</span></label>
+          <label>{t("px.label")} <span className="hint">· {t("pv.labelHint")}</span></label>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="provider01" />
         </div>
         <div className="foot">
-          <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={save} disabled={busy || !url}>{busy ? "Adding…" : "Add"}</button>
+          <button onClick={props.onClose}>{t("dlg.cancel")}</button>
+          <button className="primary" onClick={save} disabled={busy || !url}>{busy ? t("pm.saving") : t("dlg.add")}</button>
         </div>
       </div>
     </div>
@@ -885,6 +886,7 @@ function ProxyModal(props: {
 }) {
   const p = props.proxy;
   const isNew = !p;
+  const t = useT();
   const [label, setLabel] = useState(p?.label ?? "");
   const [raw, setRaw] = useState(p?.raw ?? "");
   const [note, setNote] = useState(p?.note ?? "");
@@ -898,8 +900,8 @@ function ProxyModal(props: {
   useEffect(() => {
     const v = raw.trim();
     if (!v) { setDetected(null); return; }
-    const t = setTimeout(() => { api.parseProxy(v).then(setDetected).catch(() => {}); }, 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => { api.parseProxy(v).then(setDetected).catch(() => {}); }, 250);
+    return () => clearTimeout(timer);
   }, [raw]);
 
   const test = async () => {
@@ -921,42 +923,42 @@ function ProxyModal(props: {
   return (
     <div className="overlay" onClick={props.onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{isNew ? "Add proxy" : `Edit ${p!.label}`}</h2>
-        <div className="desc">Saved to the pool — reuse it across profiles by name.</div>
+        <h2>{isNew ? t("px.add") : t("px.edit", p!.label)}</h2>
+        <div className="desc">{t("px.desc")}</div>
         <div className="field">
-          <label>Label <span className="hint">· auto (proxy01) if empty</span></label>
+          <label>{t("px.label")} <span className="hint">· {t("px.labelHint")}</span></label>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="proxy01" />
         </div>
         <div className="field">
-          <label>Address <span className="hint">· paste any format — auto-detected</span></label>
+          <label>{t("px.address")} <span className="hint">· {t("px.addressHint")}</span></label>
           <div className="inline">
             <input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="socks5://user:pass@host:1080  ·  host:port:user:pass  ·  http://host:8080" />
-            <button onClick={test} disabled={busy || !raw}>Test</button>
+            <button onClick={test} disabled={busy || !raw}>{t("pm.test")}</button>
           </div>
           {detected && (detected.ok ? (
             <div className="detected ok">
-              detected <span className="tag">{detected.scheme}</span> {detected.host}:{detected.port}
-              {detected.has_auth ? <span className="faint"> · with auth</span> : <span className="faint"> · no auth</span>}
+              {t("px.detected")} <span className="tag">{detected.scheme}</span> {detected.host}:{detected.port}
+              {detected.has_auth ? <span className="faint"> · {t("px.withAuth")}</span> : <span className="faint"> · {t("px.noAuth")}</span>}
             </div>
           ) : (
-            <div className="detected bad">unrecognized format — use scheme://host:port, host:port:user:pass, or host:port</div>
+            <div className="detected bad">{t("px.unrecognized")}</div>
           ))}
           {geo && <div className="geo ok">✓ exit <b>{geo.ip}</b> — {geo.city}, {geo.country} ({geo.country_code}) · {geo.timezone}</div>}
           {geoErr && <div className="geo bad">✗ {geoErr}</div>}
         </div>
         <div className="inline">
           <div className="field" style={{ flex: 1 }}>
-            <label>Group <span className="hint">· optional tag</span></label>
-            <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="e.g. us, residential" />
+            <label>{t("pm.group")} <span className="hint">· {t("px.groupHint")}</span></label>
+            <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder={t("px.groupPh")} />
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label>Note</label>
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" />
+            <label>{t("pm.note")}</label>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("pm.optional")} />
           </div>
         </div>
         <div className="foot">
-          <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={save} disabled={busy || !raw}>{busy ? "Saving…" : isNew ? "Add" : "Save"}</button>
+          <button onClick={props.onClose}>{t("dlg.cancel")}</button>
+          <button className="primary" onClick={save} disabled={busy || !raw}>{busy ? t("pm.saving") : isNew ? t("dlg.add") : t("pm.save")}</button>
         </div>
       </div>
     </div>
@@ -967,6 +969,7 @@ function ProxyModal(props: {
 function BulkProxyModal(props: {
   onClose: () => void; onDone: (added: number, skipped: number) => void; onError: (m: string) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async () => {
@@ -980,21 +983,16 @@ function BulkProxyModal(props: {
   return (
     <div className="overlay" onClick={props.onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Bulk import proxies</h2>
-        <div className="desc">
-          Paste proxies (one per line) — or paste raw <code>docker ps</code> output and
-          we'll pull the port mappings out. Formats: <code>scheme://user:pass@host:port</code>,
-          <code>host:port:user:pass</code>, <code>host:port</code>, or a <code>PORT:8888</code> mapping.
-          Non-proxy lines are ignored; duplicates are skipped.
-        </div>
+        <h2>{t("bulk.title")}</h2>
+        <div className="desc">{t("bulk.desc")}</div>
         <div className="field">
           <textarea style={{ minHeight: 200, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
             value={text} onChange={(e) => setText(e.target.value)}
             placeholder={"socks5://user:pass@1.2.3.4:1080\nhttp://gw.example.com:8080\n5.6.7.8:1080:user:pass\n\n# or paste docker ps output:\nnordvpn-th40-proxy  …  18893:8888  …"} />
         </div>
         <div className="foot">
-          <button onClick={props.onClose}>Cancel</button>
-          <button className="primary" onClick={submit} disabled={busy || !text.trim()}>{busy ? "Importing…" : "Import"}</button>
+          <button onClick={props.onClose}>{t("dlg.cancel")}</button>
+          <button className="primary" onClick={submit} disabled={busy || !text.trim()}>{busy ? t("pm.saving") : t("bulk.import")}</button>
         </div>
       </div>
     </div>
@@ -1003,6 +1001,7 @@ function BulkProxyModal(props: {
 
 // ---------------- engine download progress ----------------
 function EngineDownloadModal(props: { engine: string; onClose: () => void; onReady: () => void }) {
+  const t = useT();
   const label = props.engine === "chromium" ? "Chrome" : "Camoufox (Firefox)";
   const approxMB = props.engine === "chromium" ? 500 : 380;
   const [st, setSt] = useState<EngineStatus | null>(null);
@@ -1034,26 +1033,21 @@ function EngineDownloadModal(props: { engine: string; onClose: () => void; onRea
   return (
     <div className="overlay">
       <div className="modal" style={{ width: 420 }}>
-        <h2>Preparing the {label} engine</h2>
-        <div className="desc">
-          First time only — Xbrowser is downloading the {label} browser engine (~{approxMB}MB).
-          This is a one-time setup; it's instant afterward. Keep the app open.
-        </div>
+        <h2>{t("eng.title", label)}</h2>
+        <div className="desc">{t("eng.desc", label, approxMB)}</div>
         {err ? (
-          <div className="geo bad" style={{ marginTop: 4 }}>
-            Download failed: {st?.message}. Check your network and try Launch again.
-          </div>
+          <div className="geo bad" style={{ marginTop: 4 }}>{t("eng.failed", st?.message ?? "")}</div>
         ) : (
           <>
             <div className="progress"><div className="bar" style={{ width: `${Math.max(4, pct)}%` }} /></div>
             <div className="prog-row">
-              <span>{st?.state === "ready" ? "Finishing…" : "Downloading…"}</span>
+              <span>{t("eng.downloading")}</span>
               <span>{pct}%</span>
             </div>
           </>
         )}
         <div className="foot">
-          <button onClick={props.onClose}>{err ? "Close" : "Hide"}</button>
+          <button onClick={props.onClose}>{err ? t("dlg.cancel") : t("eng.hide")}</button>
         </div>
       </div>
     </div>
