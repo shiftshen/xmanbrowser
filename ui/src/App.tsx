@@ -398,20 +398,23 @@ function ProfileCard(props: {
         {p.running
           ? <button className="danger" onClick={props.onStop}>Stop</button>
           : <button className="primary" onClick={props.onLaunch}>Launch</button>}
-        <div className="check-dd" onMouseLeave={() => setCheckOpen(false)}>
+        <div className="check-dd">
           <button className="sm" title="启动到指纹/泄露检测站" onClick={() => setCheckOpen((v) => !v)}>检测 ▾</button>
           {checkOpen && (
-            <div className="check-menu">
-              {CHECK_SITES.map((s) => (
-                <button className="check-item" key={s.url} onClick={() => { setCheckOpen(false); props.onCheck(s.url); }}>
-                  <span className="check-name">{s.name}</span>
-                  <span className="check-sub">{s.sub}</span>
-                </button>
-              ))}
-              <a className="check-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer" onClick={() => setCheckOpen(false)}>
-                IP 被标记为数据中心？换干净住宅 IP →
-              </a>
-            </div>
+            <>
+              <div className="dd-backdrop" onClick={() => setCheckOpen(false)} />
+              <div className="check-menu">
+                {CHECK_SITES.map((s) => (
+                  <button className="check-item" key={s.url} onClick={() => { setCheckOpen(false); props.onCheck(s.url); }}>
+                    <span className="check-name">{s.name}</span>
+                    <span className="check-sub">{s.sub}</span>
+                  </button>
+                ))}
+                <a className="check-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer" onClick={() => setCheckOpen(false)}>
+                  IP 被标记为数据中心？换干净住宅 IP →
+                </a>
+              </div>
+            </>
           )}
         </div>
         <button className="sm" onClick={props.onEdit}>Edit</button>
@@ -464,8 +467,9 @@ function ProxiesView(props: {
         <span className="offers-label">Need clean IPs? Datacenter/VPN IPs get flagged — residential & 4G pass anti-fraud.</span>
         <div className="offer-dd">
           <button className="primary sm" onClick={() => setOffersOpen((v) => !v)}>获取住宅 / 4G / ISP 代理 ▾</button>
+          {offersOpen && <div className="dd-backdrop" onClick={() => setOffersOpen(false)} />}
           {offersOpen && (
-            <div className="offer-menu" onMouseLeave={() => setOffersOpen(false)}>
+            <div className="offer-menu">
               {PROXY_OFFERS.map((o) => (
                 <a className="offer-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" onClick={() => setOffersOpen(false)}>
                   <span className="offer-tier">{o.tier}</span>

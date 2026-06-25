@@ -40,6 +40,23 @@ def main() -> None:
         sys.argv = ["xman-runner", *sys.argv[2:]]
         raise SystemExit(runner_main())
 
+    # Frozen-bundle self-check: import the full Camoufox download chain and
+    # report. Lets CI/maintainers verify all lazy deps (requests, platformdirs,
+    # ua_parser, …) are bundled, without triggering a real 380MB download.
+    if len(sys.argv) > 1 and sys.argv[1] == "selftest":
+        try:
+            import camoufox.pkgman  # noqa: F401
+            from camoufox.addons import DefaultAddons  # noqa: F401
+            from camoufox.__main__ import cli  # noqa: F401
+            from camoufox.sync_api import Camoufox  # noqa: F401
+            print("SELFTEST OK: camoufox import chain complete", flush=True)
+            raise SystemExit(0)
+        except SystemExit:
+            raise
+        except Exception as e:  # noqa: BLE001
+            print(f"SELFTEST FAIL: {type(e).__name__}: {e}", flush=True)
+            raise SystemExit(1)
+
     host = os.environ.get("XMAN_HOST", "127.0.0.1")
     port = int(os.environ.get("XMAN_PORT", "8723"))
     # Engines are downloaded on demand (per profile engine) with progress shown

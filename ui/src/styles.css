@@ -250,6 +250,10 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .offer-sub { grid-area: sub; font-size: 11px; color: var(--muted); }
 .offer-disc { padding: 8px 14px; font-size: 10.5px; color: var(--faint); }
 
+/* click-away backdrop shared by dropdown menus (so moving the mouse to the
+   menu never closes it — only an outside click / item pick does) */
+.dd-backdrop { position: fixed; inset: 0; z-index: 29; background: transparent; }
+
 /* per-card detection (checker) dropdown */
 .check-dd { position: relative; display: inline-flex; }
 .check-menu { position: absolute; left: 0; bottom: calc(100% + 6px); width: 240px; background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 11px; box-shadow: var(--shadow); z-index: 30; overflow: hidden; }

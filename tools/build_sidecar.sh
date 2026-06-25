@@ -23,6 +23,12 @@ pyinstaller --noconfirm --clean --onedir \
   --collect-all patchright \
   --collect-all uvicorn \
   --collect-submodules fastapi \
+  --collect-all requests \
+  --collect-all urllib3 \
+  --collect-all platformdirs \
+  --collect-all screeninfo \
+  --collect-all ua_parser \
+  --hidden-import typing_extensions \
   --hidden-import xman.service \
   --hidden-import xman.cli \
   sidecar_main.py
