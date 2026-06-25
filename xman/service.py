@@ -11,11 +11,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import store, manager
+from . import store, manager, engine
 from . import fingerprint as fp
 from .proxy import Proxy, check_and_locate
 
@@ -167,12 +167,29 @@ def clone_profile(name_or_id: str, new_name: str, regenerate_fingerprint: bool =
 
 # ---------- launch / stop ----------
 
+@app.get("/api/engine/status")
+def engine_status():
+    return engine.status_all()
+
+
+@app.post("/api/engine/{name}/ensure")
+def engine_ensure(name: str):
+    return engine.ensure_async(name)
+
+
 @app.post("/api/profiles/{name_or_id}/launch")
-def launch_profile(name_or_id: str, body: LaunchReq):
+def launch_profile(name_or_id: str, body: LaunchReq, response: Response):
     try:
         prof = store.get(name_or_id)
     except KeyError:
         raise HTTPException(404, "profile not found")
+    eng = prof.fingerprint.engine
+    # First run: the browser engine isn't downloaded yet. Start the download and
+    # tell the UI to show progress instead of failing the launch.
+    if not engine.is_installed(eng):
+        st = engine.ensure_async(eng)
+        response.status_code = 202
+        return {"engine_downloading": eng, "status": st}
     return manager.launch(prof.id, url=body.url, headless=body.headless)
 
 

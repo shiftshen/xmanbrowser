@@ -232,6 +232,11 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .geo.bad { border-color: rgba(240,83,63,.4); color: #ff8a7d; }
 .modal .foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
 
+/* engine download progress */
+.progress { height: 10px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--border); overflow: hidden; margin-top: 16px; }
+.progress .bar { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--accent), #7b5cff); transition: width .4s ease; }
+.prog-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 8px; }
+
 .kv { display: grid; grid-template-columns: 132px 1fr; gap: 7px 14px; font-size: 12.5px; }
 .kv .k { color: var(--muted); }
 .kv .v { word-break: break-all; }

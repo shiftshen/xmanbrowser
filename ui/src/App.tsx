@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
@@ -51,6 +51,7 @@ export function App() {
   const [editingProxy, setEditingProxy] = useState<PoolProxy | "new" | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [detail, setDetail] = useState<Profile | null>(null);
+  const [engineDl, setEngineDl] = useState<{ engine: string; profileId: string } | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +115,22 @@ export function App() {
       await fn();
       if (ok) flash(ok);
       await refresh();
+    } catch (e: any) {
+      flash(e.message, true);
+    }
+  };
+
+  // Launch a profile; if its engine isn't downloaded yet, open the progress
+  // modal (which downloads, then auto-launches) instead of silently failing.
+  const launchProfile = async (p: Profile) => {
+    try {
+      const res = await api.launch(p.id);
+      if (res.engine_downloading) {
+        setEngineDl({ engine: res.engine_downloading, profileId: p.id });
+      } else {
+        flash(`launched ${p.name}`);
+        refresh();
+      }
     } catch (e: any) {
       flash(e.message, true);
     }
@@ -272,7 +289,7 @@ export function App() {
                 <ProfileCard
                   key={p.id} p={p}
                   proxies={proxies}
-                  onLaunch={() => act(() => api.launch(p.id), `launched ${p.name}`)}
+                  onLaunch={() => launchProfile(p)}
                   onStop={() => act(() => api.stop(p.id), `stopped ${p.name}`)}
                   onEdit={() => setEditing(p)}
                   onDetail={async () => setDetail(await api.get(p.id))}
@@ -318,6 +335,18 @@ export function App() {
         />
       )}
       {detail && <DetailModal p={detail} onClose={() => setDetail(null)} />}
+      {engineDl && (
+        <EngineDownloadModal
+          engine={engineDl.engine}
+          onClose={() => setEngineDl(null)}
+          onReady={async () => {
+            const id = engineDl.profileId;
+            setEngineDl(null);
+            try { await api.launch(id); flash("launched"); refresh(); }
+            catch (e: any) { flash(e.message, true); }
+          }}
+        />
+      )}
       {toast && <div className={`toast ${toast.err ? "err" : ""}`}>{toast.msg}</div>}
     </div>
   );
@@ -746,6 +775,65 @@ function BulkProxyModal(props: {
           <span className="faint" style={{ marginRight: "auto", alignSelf: "center" }}>{lines} line{lines === 1 ? "" : "s"}</span>
           <button onClick={props.onClose}>Cancel</button>
           <button className="primary" onClick={submit} disabled={busy || !lines}>{busy ? "Importing…" : `Import ${lines}`}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- engine download progress ----------------
+function EngineDownloadModal(props: { engine: string; onClose: () => void; onReady: () => void }) {
+  const label = props.engine === "chromium" ? "Chrome" : "Camoufox (Firefox)";
+  const approxMB = props.engine === "chromium" ? 500 : 380;
+  const [st, setSt] = useState<EngineStatus | null>(null);
+  const readyFired = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try {
+        const all = await api.engineStatus();
+        const s = all[props.engine];
+        if (cancelled) return;
+        setSt(s);
+        if (s?.state === "ready" && !readyFired.current) {
+          readyFired.current = true;
+          props.onReady();
+          return;
+        }
+      } catch { /* keep polling */ }
+      if (!cancelled) timer = setTimeout(tick, 800);
+    };
+    tick();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, []); // eslint-disable-line
+
+  const pct = st?.percent ?? 0;
+  const err = st?.state === "error";
+  return (
+    <div className="overlay">
+      <div className="modal" style={{ width: 420 }}>
+        <h2>Preparing the {label} engine</h2>
+        <div className="desc">
+          First time only — Xbrowser is downloading the {label} browser engine (~{approxMB}MB).
+          This is a one-time setup; it's instant afterward. Keep the app open.
+        </div>
+        {err ? (
+          <div className="geo bad" style={{ marginTop: 4 }}>
+            Download failed: {st?.message}. Check your network and try Launch again.
+          </div>
+        ) : (
+          <>
+            <div className="progress"><div className="bar" style={{ width: `${Math.max(4, pct)}%` }} /></div>
+            <div className="prog-row">
+              <span>{st?.state === "ready" ? "Finishing…" : "Downloading…"}</span>
+              <span>{pct}%</span>
+            </div>
+          </>
+        )}
+        <div className="foot">
+          <button onClick={props.onClose}>{err ? "Close" : "Hide"}</button>
         </div>
       </div>
     </div>

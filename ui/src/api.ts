@@ -67,6 +67,13 @@ export interface Group {
   count: number;
 }
 
+export interface EngineStatus {
+  engine: string;
+  state: "ready" | "downloading" | "missing" | "error" | "unknown";
+  percent: number;
+  message: string;
+}
+
 export interface Provider {
   id: string;
   label: string;
@@ -145,7 +152,9 @@ export const api = {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url, headless }),
-    }).then((r) => j<{ pid: number; already_running: boolean }>(r)),
+    }).then((r) => j<{ pid?: number; already_running?: boolean; engine_downloading?: string; status?: EngineStatus }>(r)),
+
+  engineStatus: () => xfetch(`${BASE}/engine/status`).then((r) => j<Record<string, EngineStatus>>(r)),
 
   stop: (id: string) => xfetch(`${BASE}/profiles/${id}/stop`, { method: "POST" }).then((r) => j<{ stopped: boolean }>(r)),
 

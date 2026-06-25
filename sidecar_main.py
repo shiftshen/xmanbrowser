@@ -42,10 +42,9 @@ def main() -> None:
 
     host = os.environ.get("XMAN_HOST", "127.0.0.1")
     port = int(os.environ.get("XMAN_PORT", "8723"))
-    # Bring the API up immediately; download/verify the browser engine in the
-    # background so the UI connects in ~1s instead of waiting on engine checks.
-    import threading
-    threading.Thread(target=_ensure_engine, daemon=True).start()
+    # Engines are downloaded on demand (per profile engine) with progress shown
+    # in the UI — see xman/engine.py — so startup is instant and we never force a
+    # 340MB Camoufox download on a user who only uses Chromium.
     import uvicorn
     from xman.service import app
     uvicorn.run(app, host=host, port=port, log_level="warning")
