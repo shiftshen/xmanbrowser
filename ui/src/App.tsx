@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+
+// A webview <a target="_blank"> opens nothing; route external links through the
+// OS browser via the Tauri opener (plain window.open as the dev-browser fallback).
+const _inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+function openExternal(e: React.MouseEvent, url: string) {
+  e.preventDefault();
+  if (_inTauri) openUrl(url).catch(() => window.open(url, "_blank"));
+  else window.open(url, "_blank", "noreferrer");
+}
 import logoShield from "./assets/logo-shield.png";
 import logo711 from "./assets/offers/711proxy.svg";
 import logoWebshare from "./assets/offers/webshare.svg";
@@ -213,7 +223,7 @@ export function App() {
         <div className="nav-aff">
           <div className="nav-aff-title">获取干净代理</div>
           {PROXY_OFFERS.map((o) => (
-            <a className="nav-aff-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" title={o.sub}>
+            <a className="nav-aff-item" key={o.href} href={o.href} onClick={(e) => openExternal(e, o.href)} title={o.sub}>
               <img src={o.logo} alt={o.alt} />
               <span className="nav-aff-tag">{o.tier}</span>
             </a>
@@ -437,7 +447,7 @@ function DetectResultPanel(props: { result: DetectResult | null; err: string | n
               </div>
             ))}
             {result.rating !== "clean" && (
-              <a className="detect-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer">
+              <a className="detect-cta" href={CLEAN_IP_CTA.href} onClick={(e) => openExternal(e, CLEAN_IP_CTA.href)}>
                 IP 不够干净?换 711Proxy 住宅 IP →
               </a>
             )}
@@ -560,7 +570,7 @@ function ProxiesView(props: {
           {offersOpen && (
             <div className="offer-menu">
               {PROXY_OFFERS.map((o) => (
-                <a className="offer-item" key={o.href} href={o.href} target="_blank" rel="noreferrer" onClick={() => setOffersOpen(false)}>
+                <a className="offer-item" key={o.href} href={o.href} onClick={(e) => { setOffersOpen(false); openExternal(e, o.href); }}>
                   <span className="offer-tier">{o.tier}</span>
                   <img className="offer-logo" src={o.logo} alt={o.alt} />
                   <span className="offer-sub">{o.sub}</span>

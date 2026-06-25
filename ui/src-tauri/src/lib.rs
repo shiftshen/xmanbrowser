@@ -87,6 +87,7 @@ fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
