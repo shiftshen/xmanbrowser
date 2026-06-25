@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
+import { api, DetectResult, EngineStatus, GeoInfo, Group, PoolProxy, Profile, Provider } from "./api";
 import logoShield from "./assets/logo-shield.png";
 import logo711 from "./assets/offers/711proxy.svg";
 import logoWebshare from "./assets/offers/webshare.svg";
@@ -14,15 +14,7 @@ const PROXY_OFFERS: { tier: string; logo: string; alt: string; sub: string; href
   { tier: "便宜入门", logo: logoWebshare, alt: "Webshare", sub: "免费10个代理起 · 按量计费 · 卡/PayPal", href: "https://www.webshare.io/?referral_code=a408k2bpaeid" },
 ];
 
-// One-click fingerprint/leak checkers — launch a profile straight to one.
-const CHECK_SITES: { name: string; sub: string; url: string }[] = [
-  { name: "Whoer", sub: "匿名度 · IP/DNS/WebRTC 泄露", url: "https://whoer.net/" },
-  { name: "BrowserLeaks", sub: "WebGL · Canvas · 字体", url: "https://browserleaks.com/" },
-  { name: "Pixelscan", sub: "IP 风险分 · 数据中心检测", url: "https://pixelscan.net/" },
-  { name: "iphey", sub: "指纹一致性 · trustworthy?", url: "https://iphey.com/" },
-  { name: "CreepJS", sub: "深度指纹 · lie detection", url: "https://abrahamjuliot.github.io/creepjs/" },
-];
-// Affiliate CTA shown under the checker menu (dirty IP → buy clean proxies).
+// Affiliate CTA shown when a detection comes back dirty (→ buy clean proxies).
 const CLEAN_IP_CTA = PROXY_OFFERS[0]; // 711Proxy
 
 const AVATAR_COLORS = ["#4f8cff", "#7b5cff", "#3fb950", "#d6a338", "#f0533f", "#27b3b3", "#e06cc8"];
@@ -292,7 +284,6 @@ export function App() {
                   key={p.id} p={p}
                   proxies={proxies}
                   onLaunch={() => launchProfile(p)}
-                  onCheck={(url) => launchProfile(p, url)}
                   onStop={() => act(() => api.stop(p.id), `stopped ${p.name}`)}
                   onEdit={() => setEditing(p)}
                   onDetail={async () => setDetail(await api.get(p.id))}
@@ -361,10 +352,8 @@ function ProfileCard(props: {
   p: Profile; proxies: PoolProxy[];
   onLaunch: () => void; onStop: () => void; onEdit: () => void;
   onDetail: () => void; onClone: () => void; onDelete: () => void;
-  onCheck: (url: string) => void;
 }) {
   const { p } = props;
-  const [checkOpen, setCheckOpen] = useState(false);
   const f = p.fingerprint;
   const pool = props.proxies.find((x) => x.raw === p.proxy_raw);
   const proxyOk = pool?.last_ok;
@@ -398,25 +387,6 @@ function ProfileCard(props: {
         {p.running
           ? <button className="danger" onClick={props.onStop}>Stop</button>
           : <button className="primary" onClick={props.onLaunch}>Launch</button>}
-        <div className="check-dd">
-          <button className="sm" title="启动到指纹/泄露检测站" onClick={() => setCheckOpen((v) => !v)}>检测 ▾</button>
-          {checkOpen && (
-            <>
-              <div className="dd-backdrop" onClick={() => setCheckOpen(false)} />
-              <div className="check-menu">
-                {CHECK_SITES.map((s) => (
-                  <button className="check-item" key={s.url} onClick={() => { setCheckOpen(false); props.onCheck(s.url); }}>
-                    <span className="check-name">{s.name}</span>
-                    <span className="check-sub">{s.sub}</span>
-                  </button>
-                ))}
-                <a className="check-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer" onClick={() => setCheckOpen(false)}>
-                  IP 被标记为数据中心？换干净住宅 IP →
-                </a>
-              </div>
-            </>
-          )}
-        </div>
         <button className="sm" onClick={props.onEdit}>Edit</button>
         <button className="sm" onClick={props.onClone}>Clone</button>
         <button className="sm ghost danger iconbtn" onClick={props.onDelete}>✕</button>
@@ -433,9 +403,55 @@ function ProxiesView(props: {
   onAddProvider: () => void; onRefreshProvider: (p: Provider) => void; onDeleteProvider: (p: Provider) => void;
 }) {
   const [offersOpen, setOffersOpen] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [detResult, setDetResult] = useState<DetectResult | null>(null);
+  const [detErr, setDetErr] = useState<string | null>(null);
   const mask = (raw: string) => raw.replace(/:([^:@/]+)@/, ":••••@");
+
+  const runDetect = async () => {
+    setDetecting(true); setDetErr(null);
+    try { setDetResult(await api.detect()); }
+    catch (e: any) { setDetErr(e.message || "检测失败"); }
+    finally { setDetecting(false); }
+  };
+  const ratingLabel = (r: string) => r === "clean" ? "干净" : r === "risky" ? "有风险" : "已被标记";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      {/* one-click environment detection */}
+      <div className="detect-panel">
+        <div className="detect-head">
+          <span className="sec-title">环境检测 <span className="faint">· 当前出口 IP 是否干净</span></span>
+          <button className="primary" disabled={detecting} onClick={runDetect}>
+            {detecting ? "检测中…" : "一键检测"}
+          </button>
+        </div>
+        <div className="detect-hint">查当前网络出口 IP 的地区 · ISP · 类型 · 风控标记,给出 0–100 信任分。</div>
+        {detErr && <div className="detect-err">检测失败:{detErr}</div>}
+        {detResult && (
+          <div className="detect-result">
+            <div className={`score-badge ${detResult.rating}`}>
+              <span className="score-num">{detResult.score}</span>
+              <span className="score-label">{ratingLabel(detResult.rating)}</span>
+            </div>
+            <div className="detect-rows">
+              {detResult.rows.map((r, i) => (
+                <div className="detect-row" key={i}>
+                  <span className={`drow-dot ${r.ok === false ? "bad" : r.ok === true ? "good" : "unk"}`} />
+                  <span className="drow-k">{r.label}</span>
+                  <span className="drow-v">{r.value}</span>
+                </div>
+              ))}
+              {detResult.rating !== "clean" && (
+                <a className="detect-cta" href={CLEAN_IP_CTA.href} target="_blank" rel="noreferrer">
+                  IP 不够干净?换 711Proxy 住宅 IP →
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* providers panel */}
       <div className="providers">
         <div className="providers-head">

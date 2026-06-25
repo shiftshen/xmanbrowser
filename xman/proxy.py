@@ -247,6 +247,64 @@ def check_and_locate(proxy: Optional[Proxy], timeout: float = 15.0) -> GeoInfo:
     raise RuntimeError(f"could not reach any geo service through the proxy ({last_err})")
 
 
+def detect(proxy: Optional[Proxy] = None, timeout: float = 15.0) -> dict:
+    """One-click environment check for the current egress (direct, or via proxy).
+
+    Aggregates several signals into a single 0-100 trust score + a list of
+    human-readable result rows. Backend may grow more sources over time; the
+    frontend just shows the score and the rows.
+    """
+    geo = check_and_locate(proxy, timeout=timeout)  # ip + geo + isp + ip_type
+
+    # Pull the raw anti-fraud flags (proxy / hosting / mobile) for scoring.
+    flags = {"proxy": False, "hosting": False, "mobile": False}
+    try:
+        with httpx.Client(timeout=min(timeout, 8.0)) as c:
+            d = c.get(f"http://ip-api.com/json/{geo.ip}"
+                      "?fields=status,proxy,hosting,mobile").json()
+        if d.get("status") == "success":
+            flags = {k: bool(d.get(k)) for k in ("proxy", "hosting", "mobile")}
+    except Exception:
+        pass
+
+    # Score: start clean, subtract for anti-fraud red flags.
+    score = 100
+    rows = []
+    loc = ", ".join(x for x in (geo.city, geo.country) if x) or "unknown"
+    rows.append({"label": "IP / 地区", "value": f"{geo.ip} · {loc}", "ok": True})
+    if geo.isp:
+        rows.append({"label": "ISP", "value": geo.isp, "ok": True})
+
+    t = geo.ip_type
+    if t == "residential":
+        rows.append({"label": "IP 类型", "value": "住宅 (residential)", "ok": True})
+    elif t == "mobile":
+        rows.append({"label": "IP 类型", "value": "移动 (mobile) — 最干净", "ok": True})
+    elif t == "datacenter":
+        score -= 55
+        rows.append({"label": "IP 类型", "value": "数据中心 (datacenter) — 易被风控", "ok": False})
+    else:
+        score -= 15
+        rows.append({"label": "IP 类型", "value": "未知", "ok": None})
+
+    if flags["hosting"] and t != "datacenter":
+        score -= 40
+        rows.append({"label": "托管/机房", "value": "命中 hosting 段", "ok": False})
+    if flags["proxy"]:
+        score -= 25
+        rows.append({"label": "代理/VPN 检测", "value": "被标记为 proxy/VPN", "ok": False})
+    else:
+        rows.append({"label": "代理/VPN 检测", "value": "未被标记", "ok": True})
+
+    score = max(0, min(100, score))
+    rating = "clean" if score >= 80 else "risky" if score >= 50 else "flagged"
+    return {
+        "ip": geo.ip, "country": geo.country, "country_code": geo.country_code,
+        "city": geo.city, "isp": geo.isp, "ip_type": geo.ip_type,
+        "flags": flags, "score": score, "rating": rating, "rows": rows,
+    }
+
+
 def _classify_ip(geo: GeoInfo, timeout: float = 8.0) -> None:
     """Tag the exit IP's quality (datacenter / residential / mobile) + ISP.
 

@@ -421,6 +421,18 @@ def proxy_check(proxy: str):
     return geo.__dict__
 
 
+@app.get("/api/detect")
+def detect_env(proxy: str = ""):
+    """One-click environment/IP detection → score + result rows. With no proxy
+    it checks the current direct egress; pass a proxy raw string to test that."""
+    from .proxy import detect
+    try:
+        p = Proxy.parse(proxy) if proxy.strip() else None
+        return detect(p)
+    except Exception as e:
+        raise HTTPException(400, f"detect failed: {e}")
+
+
 # ---------- import / export ----------
 
 @app.get("/api/export")

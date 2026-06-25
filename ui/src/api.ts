@@ -76,6 +76,24 @@ export interface EngineStatus {
   message: string;
 }
 
+export interface DetectRow {
+  label: string;
+  value: string;
+  ok: boolean | null;
+}
+export interface DetectResult {
+  ip: string;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  isp: string | null;
+  ip_type: string | null;
+  flags: { proxy: boolean; hosting: boolean; mobile: boolean };
+  score: number;
+  rating: "clean" | "risky" | "flagged";
+  rows: DetectRow[];
+}
+
 export interface Provider {
   id: string;
   label: string;
@@ -157,6 +175,9 @@ export const api = {
     }).then((r) => j<{ pid?: number; already_running?: boolean; engine_downloading?: string; status?: EngineStatus }>(r)),
 
   engineStatus: () => xfetch(`${BASE}/engine/status`).then((r) => j<Record<string, EngineStatus>>(r)),
+
+  detect: (proxy = "") =>
+    xfetch(`${BASE}/detect?proxy=${encodeURIComponent(proxy)}`).then((r) => j<DetectResult>(r)),
 
   stop: (id: string) => xfetch(`${BASE}/profiles/${id}/stop`, { method: "POST" }).then((r) => j<{ stopped: boolean }>(r)),
 

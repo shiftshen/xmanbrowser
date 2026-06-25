@@ -264,6 +264,29 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .check-cta { display: block; padding: 9px 13px; font-size: 11px; color: #cfe0ff; background: var(--accent-soft); text-decoration: none; }
 .check-cta:hover { filter: brightness(1.15); }
 
+/* one-click environment detection panel */
+.detect-panel { background: var(--panel-2); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+.detect-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.detect-hint { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.detect-err { margin-top: 10px; font-size: 12px; color: #f0533f; }
+.detect-result { margin-top: 14px; display: flex; gap: 16px; align-items: flex-start; }
+.score-badge { flex-shrink: 0; width: 92px; height: 92px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid var(--border-2); }
+.score-badge.clean { background: rgba(63,185,80,.12); border-color: rgba(63,185,80,.35); }
+.score-badge.risky { background: rgba(214,153,40,.12); border-color: rgba(214,153,40,.40); }
+.score-badge.flagged { background: rgba(240,83,63,.12); border-color: rgba(240,83,63,.40); }
+.score-num { font-size: 34px; font-weight: 800; line-height: 1; color: var(--text); }
+.score-label { font-size: 11px; color: var(--muted); }
+.detect-rows { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.detect-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+.drow-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: #5c6678; }
+.drow-dot.good { background: #3fb950; }
+.drow-dot.bad { background: #f0533f; }
+.drow-dot.unk { background: #d69928; }
+.drow-k { color: var(--muted); width: 96px; flex-shrink: 0; }
+.drow-v { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detect-cta { display: inline-block; margin-top: 5px; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #fff; background: var(--accent); border-radius: 8px; text-decoration: none; align-self: flex-start; }
+.detect-cta:hover { filter: brightness(1.08); }
+
 /* proxy auto-detect */
 .detected { margin-top: 8px; font-size: 12px; }
 .detected.ok { color: #9ee6a6; }
