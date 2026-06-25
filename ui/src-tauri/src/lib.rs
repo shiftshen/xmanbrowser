@@ -11,21 +11,31 @@ use tauri::{Manager, RunEvent};
 
 struct Backend(Mutex<Option<Child>>);
 
-fn spawn_backend() -> Option<Child> {
-    // 1. Bundled sidecar (production): a standalone backend executable placed
-    //    next to the app binary via Tauri externalBin. No Python needed.
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let name = if cfg!(windows) { "xman-server.exe" } else { "xman-server" };
-            let sidecar = dir.join(name);
-            if sidecar.exists() {
-                match Command::new(&sidecar).spawn() {
-                    Ok(child) => {
-                        log::info!("started bundled sidecar (pid {})", child.id());
-                        return Some(child);
+fn spawn_backend(resource_dir: Option<std::path::PathBuf>) -> Option<Child> {
+    // 1. Bundled sidecar (production): a PyInstaller onedir backend shipped under
+    //    the app's resources (sidecar/xman-server + sidecar/_internal/). onedir
+    //    means no per-launch self-extraction → ~1s cold start. No Python needed.
+    if let Some(res) = resource_dir {
+        let name = if cfg!(windows) { "xman-server.exe" } else { "xman-server" };
+        let sidecar = res.join("sidecar").join(name);
+        if sidecar.exists() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(meta) = std::fs::metadata(&sidecar) {
+                    let mut p = meta.permissions();
+                    if p.mode() & 0o111 == 0 {
+                        p.set_mode(0o755);
+                        let _ = std::fs::set_permissions(&sidecar, p);
                     }
-                    Err(e) => log::error!("sidecar spawn failed: {e}"),
                 }
+            }
+            match Command::new(&sidecar).spawn() {
+                Ok(child) => {
+                    log::info!("started bundled sidecar (pid {})", child.id());
+                    return Some(child);
+                }
+                Err(e) => log::error!("sidecar spawn failed: {e}"),
             }
         }
     }
@@ -83,7 +93,8 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            app.manage(Backend(Mutex::new(spawn_backend())));
+            let res = app.path().resource_dir().ok();
+            app.manage(Backend(Mutex::new(spawn_backend(res))));
             Ok(())
         })
         .build(tauri::generate_context!())

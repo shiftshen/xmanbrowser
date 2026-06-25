@@ -137,6 +137,28 @@ amiunique.org. Checks: same profile → stable fingerprint across launches;
 different profiles → different fingerprints; proxy IP matches timezone/locale;
 no WebRTC real-IP leak; no CDP/automation tells.
 
+## Install & first run (unsigned build)
+
+The public builds are **not yet notarized** (that needs a paid Apple Developer
+account). macOS Gatekeeper will warn on first open:
+
+- **macOS:** right-click `Xbrowser.app` → **Open** → **Open** (only needed once),
+  or run `xattr -dr com.apple.quarantine /Applications/Xbrowser.app`.
+- **Windows:** SmartScreen → **More info** → **Run anyway**.
+
+The first launch is a little slower (the OS scans the bundle once); after that the
+local engine starts in **under a second** (PyInstaller onedir — no per-launch
+extraction).
+
+### Enabling signed + notarized releases
+
+CI is already wired for it — add these repo secrets and the next
+`Desktop build` produces signed, notarized installers (no Gatekeeper warning):
+
+- macOS: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+  `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID`
+- Windows: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
 ## License
 
 MIT.

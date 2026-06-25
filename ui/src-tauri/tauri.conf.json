@@ -28,7 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/xman-server"],
+    "resources": ["sidecar/**/*"],
     "category": "DeveloperTool",
     "shortDescription": "Open-source fingerprint browser",
     "longDescription": "XMan — free & open-source macOS fingerprint browser. Isolated profiles with consistent fingerprints, per-profile proxy, and storage isolation.",

@@ -10,7 +10,10 @@ TRIPLE="${1:-$(rustc -vV | sed -n 's/host: //p')}"
 echo "target triple: $TRIPLE"
 
 rm -rf build dist
-pyinstaller --noconfirm --clean --onefile \
+# --onedir (NOT onefile): no ~100MB self-extraction on every launch, so the
+# backend cold-starts in ~1s instead of ~4s. Bundled into the app via Tauri
+# resources (see tauri.conf.json) rather than externalBin.
+pyinstaller --noconfirm --clean --onedir \
   --name xman-server \
   --collect-all camoufox \
   --collect-all browserforge \
@@ -24,8 +27,9 @@ pyinstaller --noconfirm --clean --onefile \
   --hidden-import xman.cli \
   sidecar_main.py
 
-mkdir -p ui/src-tauri/binaries
-EXT=""
-case "$TRIPLE" in *windows*) EXT=".exe";; esac
-cp "dist/xman-server$EXT" "ui/src-tauri/binaries/xman-server-$TRIPLE$EXT"
-echo "sidecar -> ui/src-tauri/binaries/xman-server-$TRIPLE$EXT"
+# dist/xman-server/ holds the exe + _internal/. Copy the tree into the Tauri
+# resources folder (same layout: xman-server next to _internal/).
+rm -rf ui/src-tauri/sidecar
+mkdir -p ui/src-tauri/sidecar
+cp -R dist/xman-server/. ui/src-tauri/sidecar/
+echo "sidecar (onedir) -> ui/src-tauri/sidecar/ ($(du -sh ui/src-tauri/sidecar | cut -f1))"
