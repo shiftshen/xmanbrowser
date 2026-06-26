@@ -105,9 +105,13 @@ def is_installed(engine: str) -> bool:
         try:
             base = _chromium_dir()
             rev = _patchright_chromium_revision()
-            if rev and _chromium_dir_installed(base / f"chromium-{rev}"):
-                return True
-            # Revision unknown (or pinned build absent) — accept any complete one.
+            if rev:
+                # Pinned build known → it must be the one on disk. An older cached
+                # chromium-* does NOT count: patchright launches the pinned build,
+                # so accepting a stale one here would skip the required install and
+                # break the launch.
+                return _chromium_dir_installed(base / f"chromium-{rev}")
+            # Revision unreadable → best-effort: any complete chromium-* will do.
             return any(_chromium_dir_installed(d) for d in base.glob("chromium-*"))
         except Exception:
             return False

@@ -39,3 +39,27 @@ def test_is_installed_chromium_false_without_marker(tmp_path, monkeypatch):
     monkeypatch.setattr(engine, "_chromium_dir", lambda: base)
     monkeypatch.setattr(engine, "_patchright_chromium_revision", lambda: "9999")
     assert engine.is_installed("chromium") is False
+
+
+def _complete(d):
+    (d / "chrome-mac-arm64").mkdir(parents=True)
+    (d / "INSTALLATION_COMPLETE").write_text("")
+
+
+def test_pinned_revision_missing_does_not_accept_stale_cache(tmp_path, monkeypatch):
+    """codex regression: when the pinned build is known but absent, an older
+    complete chromium-* must NOT satisfy the check — otherwise _ensure_chromium
+    skips the required download and the launch fails."""
+    base = tmp_path / "ms-playwright"
+    _complete(base / "chromium-1111")          # an old, complete cache
+    monkeypatch.setattr(engine, "_chromium_dir", lambda: base)
+    monkeypatch.setattr(engine, "_patchright_chromium_revision", lambda: "9999")  # pinned, absent
+    assert engine.is_installed("chromium") is False
+
+
+def test_unknown_revision_falls_back_to_any_complete(tmp_path, monkeypatch):
+    base = tmp_path / "ms-playwright"
+    _complete(base / "chromium-1234")
+    monkeypatch.setattr(engine, "_chromium_dir", lambda: base)
+    monkeypatch.setattr(engine, "_patchright_chromium_revision", lambda: None)  # unreadable
+    assert engine.is_installed("chromium") is True
