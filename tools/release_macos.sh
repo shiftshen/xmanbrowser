@@ -59,22 +59,34 @@ if [ -n "$UNSIGNED" ]; then
   exit 1
 fi
 
-echo "── [5/7] build DMG"
+# IMPORTANT ordering: notarize the .app BUNDLE itself (not just the DMG). The
+# auto-updater ships a tar.gz of the .app, and `stapler staple <app>` only works
+# if that bundle was notarized directly — notarizing just the DMG leaves the app
+# without its own ticket and staple fails (Error 65, "Record not found"), which
+# under `set -e` aborts before the updater artifact is built. So: notarize+staple
+# the app first, then build/notarize/staple the DMG from the already-stapled app.
+
+echo "── [5/8] notarize + staple the .app bundle (for the updater artifact)"
+APPZIP="/tmp/XmanBrowser_${VERSION}_app.zip"
+rm -f "$APPZIP"
+ditto -c -k --keepParent "$APP" "$APPZIP"
+xcrun notarytool submit "$APPZIP" --keychain-profile "$PROFILE" --wait
+xcrun stapler staple "$APP"
+xcrun stapler validate "$APP" 2>&1 | tail -1
+spctl -a -vv "$APP" 2>&1 | grep -E "source=|accepted|rejected" || true
+
+echo "── [6/8] build DMG from the stapled app"
 STAGE="$(mktemp -d)/dmg"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"; ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -volname "XmanBrowser" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 echo "  dmg: $(du -sh "$DMG" | cut -f1)"
 
-echo "── [6/7] notarize (keychain profile: $PROFILE)"
+echo "── [7/8] notarize + staple the DMG"
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
-
-echo "── [7/8] staple + verify"
 xcrun stapler staple "$DMG"
-xcrun stapler staple "$APP"
-spctl -a -vv "$APP" 2>&1 | grep -E "source=|accepted|rejected" || true
 
-echo "── [8/8] auto-updater artifact (tar.gz of the NOTARIZED app + updater signature)"
+echo "── [8/8] auto-updater artifact (tar.gz of the NOTARIZED+STAPLED app + signature)"
 UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
 TARGZ="/tmp/XmanBrowser_${VERSION}_aarch64.app.tar.gz"
 rm -f "$TARGZ" "$TARGZ.sig"
