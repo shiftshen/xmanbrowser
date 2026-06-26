@@ -54,6 +54,39 @@ def _dir_size(path: Optional[Path]) -> int:
 
 # ---------- install checks ----------
 
+def _patchright_chromium_revision() -> Optional[str]:
+    """Patchright's pinned Chromium build number, read from its bundled
+    browsers.json — a plain file read, no driver process."""
+    try:
+        import glob
+        import json
+        from patchright._impl._driver import compute_driver_executable
+        drv = compute_driver_executable()
+        drv0 = drv[0] if isinstance(drv, (list, tuple)) else drv
+        pkg = os.path.dirname(os.fspath(drv0))
+        for bj in glob.glob(os.path.join(pkg, "**", "browsers.json"), recursive=True):
+            try:
+                data = json.load(open(bj))
+            except Exception:
+                continue
+            for b in data.get("browsers", []):
+                if b.get("name") == "chromium" and b.get("revision"):
+                    return str(b["revision"])
+    except Exception:
+        return None
+    return None
+
+
+def _chromium_dir_installed(d: Path) -> bool:
+    """A `chromium-<rev>` dir is usable iff Playwright's own post-install marker
+    is present AND a platform browser payload sits next to it. The marker is the
+    canonical signal Playwright writes after a validated download; checking it
+    avoids guessing the (arch- and branding-specific) executable path."""
+    if not (d / "INSTALLATION_COMPLETE").exists():
+        return False
+    return any(d.glob("chrome-*"))
+
+
 def is_installed(engine: str) -> bool:
     if engine == "camoufox":
         try:
@@ -63,13 +96,19 @@ def is_installed(engine: str) -> bool:
         except Exception:
             return False
     if engine == "chromium":
+        # NB: do NOT start a Playwright driver here (sync_playwright →
+        # executable_path). This runs inside the API server (status poll + every
+        # launch); in the PyInstaller-frozen sidecar starting the bundled Node
+        # driver hangs, wedging /api/engine/status and chromium launches while
+        # Camoufox stays fine. Resolve the browser from disk instead — cheap and
+        # process-free.
         try:
-            from .launcher import _set_browsers_path
-            _set_browsers_path()
-            from patchright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                exe = p.chromium.executable_path
-            return bool(exe and os.path.exists(exe))
+            base = _chromium_dir()
+            rev = _patchright_chromium_revision()
+            if rev and _chromium_dir_installed(base / f"chromium-{rev}"):
+                return True
+            # Revision unknown (or pinned build absent) — accept any complete one.
+            return any(_chromium_dir_installed(d) for d in base.glob("chromium-*"))
         except Exception:
             return False
     return False

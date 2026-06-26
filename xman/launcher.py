@@ -96,13 +96,13 @@ def _set_browsers_path() -> None:
 
 
 def _ensure_chromium() -> None:
-    _set_browsers_path()
     """Download the patchright Chromium browser on first use if it's missing."""
+    _set_browsers_path()
+    # Cheap, process-free disk check (no sync_playwright / Node driver). The
+    # driver probe is what hangs the frozen sidecar, so avoid it on the hot path.
     try:
-        from patchright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            path = p.chromium.executable_path
-        if path and os.path.exists(path):
+        from . import engine
+        if engine.is_installed("chromium"):
             return
     except Exception:
         pass
