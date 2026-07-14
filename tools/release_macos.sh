@@ -102,7 +102,11 @@ UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
 TARGZ="/tmp/XmanBrowser_${VERSION}_aarch64.app.tar.gz"
 rm -f "$TARGZ" "$TARGZ.sig"
 tar czf "$TARGZ" -C "$(dirname "$APP")" "XmanBrowser.app"
-npx --prefix ui tauri signer sign -f "$UPD_KEY" -p "" "$TARGZ" >/dev/null
+# The build step exports the key contents for Tauri's updater bundle. The
+# standalone signer must receive exactly one key source, so clear those vars
+# before passing the private-key file explicitly.
+env -u TAURI_SIGNING_PRIVATE_KEY -u TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+  npx --prefix ui tauri signer sign -f "$UPD_KEY" -p "" "$TARGZ" >/dev/null
 echo "  updater: $TARGZ (+ .sig)"
 
 echo "✅ DONE"
