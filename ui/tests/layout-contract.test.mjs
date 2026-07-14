@@ -53,3 +53,21 @@ test("the desktop window opens at a small-laptop-friendly size", () => {
 test("the app declares its favicon instead of producing a console 404", () => {
   assert.match(index, /<link\s+rel="icon"[^>]+href="\/src\/assets\/logo-shield\.png"/);
 });
+
+test("manual update checks keep their result beside the control", () => {
+  assert.match(app, /type UpdateCheckState = "idle" \| "checking" \| "available" \| "latest" \| "error"/);
+  assert.match(app, /className=\{`ver-status \$\{updateCheckState\}`\}/);
+  assert.match(app, /role="status" aria-live="polite"/);
+  assert.match(app, /t\("upd\.found", update\.version\)/);
+  assert.match(app, /t\("upd\.failed"\)/);
+  assert.match(rule(".ver-status"), /min-height:/);
+  assert.match(rule(".ver-status.error"), /color:\s*var\(--red\)/);
+});
+
+test("update checks use a bounded retry instead of failing silently", () => {
+  assert.match(app, /const UPDATE_CHECK_TIMEOUT_MS = 12_000/);
+  assert.match(app, /async function requestUpdate\(attempts = 2\)/);
+  assert.match(app, /checkUpdate\(\{ timeout: UPDATE_CHECK_TIMEOUT_MS/);
+  assert.match(app, /if \(attempt < attempts\)/);
+  assert.doesNotMatch(app, /catch\(\(\) => \{ \/\* offline \/ no update \*\/ \}\)/);
+});

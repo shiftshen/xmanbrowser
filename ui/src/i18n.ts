@@ -156,7 +156,9 @@ const DICT: Record<Lang, Record<string, string>> = {
     "upd.later": "Later",
     "upd.check": "Check for updates",
     "upd.checking": "Checking…",
+    "upd.found": "Version {0} is ready above",
     "upd.latest": "You're on the latest version",
+    "upd.failed": "Check failed — click to retry",
     "lang.toggle": "中文",
   },
   zh: {
@@ -311,7 +313,9 @@ const DICT: Record<Lang, Record<string, string>> = {
     "upd.later": "稍后",
     "upd.check": "检查更新",
     "upd.checking": "检查中…",
+    "upd.found": "已发现 {0},请在顶部更新",
     "upd.latest": "已是最新版",
+    "upd.failed": "检查失败,点击重试",
     "lang.toggle": "EN",
   },
 };

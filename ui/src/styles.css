@@ -310,11 +310,16 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 .update-banner .upd-progress { font-variant-numeric: tabular-nums; }
 
 /* app version + check-for-updates (sidebar footer) */
-.ver-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 8px 6px; padding: 0 2px; }
+.ver-block { margin: 0 8px 6px; }
+.ver-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
 .ver { font-size: 11px; color: var(--faint); }
 .ver-check { font-size: 11px; color: #cfe0ff; background: none; border: none; cursor: pointer; padding: 2px 4px; }
 .ver-check:hover:not(:disabled) { text-decoration: underline; }
+.ver-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 .ver-check:disabled { color: var(--muted); cursor: default; }
+.ver-status { min-height: 14px; padding: 2px; color: var(--muted); font-size: 10.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.ver-status.available { color: #7ee787; }
+.ver-status.error { color: var(--red); }
 
 /* language toggle (sidebar) */
 .lang-toggle { margin: 0 8px 8px; padding: 6px 10px; font-size: 12px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; text-align: left; }
