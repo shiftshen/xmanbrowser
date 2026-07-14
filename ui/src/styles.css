@@ -308,6 +308,7 @@ select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg x
 /* auto-update banner */
 .update-banner { display: flex; align-items: center; gap: 10px; padding: 9px 18px; background: var(--accent-soft); color: #cfe0ff; border-bottom: 1px solid rgba(80,120,255,.35); font-size: 13px; }
 .update-banner .upd-progress { font-variant-numeric: tabular-nums; }
+.update-banner .upd-error { max-width: min(42vw, 520px); color: var(--red); font-size: 11px; overflow-wrap: anywhere; }
 
 /* app version + check-for-updates (sidebar footer) */
 .ver-block { margin: 0 8px 6px; }

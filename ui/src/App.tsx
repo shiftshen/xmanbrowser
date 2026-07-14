@@ -41,6 +41,12 @@ async function requestUpdate(attempts = 2) {
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "update check failed"));
 }
 
+function updateErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return String((error as { message?: unknown } | null)?.message ?? error ?? "update failed");
+}
+
 // Proxy affiliate placements (referral links). Two picks: one premium /
 // Chinese-payment-friendly, one budget with a free tier.
 const PROXY_OFFERS: { tierKey: string; logo: string; alt: string; subKey: string; href: string }[] = [
@@ -98,6 +104,7 @@ export function App() {
   // a banner downloads + installs + relaunches.
   const [update, setUpdate] = useState<any>(null);
   const [updPct, setUpdPct] = useState<number | null>(null);
+  const [updateInstallError, setUpdateInstallError] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [updateCheckState, setUpdateCheckState] = useState<UpdateCheckState>("idle");
   const checking = updateCheckState === "checking";
@@ -132,6 +139,7 @@ export function App() {
   };
   const doUpdate = async () => {
     if (!update) return;
+    setUpdateInstallError("");
     setUpdPct(0);
     try {
       let total = 0, got = 0;
@@ -140,7 +148,12 @@ export function App() {
         else if (e.event === "Progress") { got += e.data?.chunkLength ?? 0; setUpdPct(total ? Math.round((got / total) * 100) : 0); }
       });
       await relaunch();
-    } catch (e: any) { flash(e.message || "update failed", true); setUpdPct(null); }
+    } catch (error: unknown) {
+      const message = updateErrorMessage(error);
+      setUpdateInstallError(message);
+      flash(message, true);
+      setUpdPct(null);
+    }
   };
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -361,6 +374,7 @@ export function App() {
         {update && (
           <div className="update-banner">
             <span>🎉 {t("upd.available", update.version)}</span>
+            {updateInstallError && <span className="upd-error" role="alert">{updateInstallError}</span>}
             <span className="grow" />
             {updPct == null ? (
               <>
