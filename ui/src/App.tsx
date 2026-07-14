@@ -22,6 +22,24 @@ import logoWebshare from "./assets/offers/webshare.svg";
 
 type Toast = { msg: string; err?: boolean } | null;
 type View = "profiles" | "proxies";
+type UpdateCheckState = "idle" | "checking" | "available" | "latest" | "error";
+
+const UPDATE_CHECK_TIMEOUT_MS = 12_000;
+
+async function requestUpdate(attempts = 2) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await checkUpdate({ timeout: UPDATE_CHECK_TIMEOUT_MS,
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) continue;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "update check failed"));
+}
 
 // Proxy affiliate placements (referral links). Two picks: one premium /
 // Chinese-payment-friendly, one budget with a free tier.
@@ -81,20 +99,36 @@ export function App() {
   const [update, setUpdate] = useState<any>(null);
   const [updPct, setUpdPct] = useState<number | null>(null);
   const [appVersion, setAppVersion] = useState("");
-  const [checking, setChecking] = useState(false);
+  const [updateCheckState, setUpdateCheckState] = useState<UpdateCheckState>("idle");
+  const checking = updateCheckState === "checking";
   useEffect(() => {
     if (!_inTauri) return;
     getVersion().then(setAppVersion).catch(() => {});
-    checkUpdate().then((u) => { if (u) setUpdate(u); }).catch(() => { /* offline / no update */ });
+    requestUpdate().then((u) => {
+      if (u) {
+        setUpdate(u);
+        setUpdateCheckState("available");
+      } else {
+        setUpdateCheckState("latest");
+      }
+    }).catch(() => setUpdateCheckState("error"));
   }, []);
   const manualCheck = async () => {
     if (!_inTauri) return;
-    setChecking(true);
+    setUpdateCheckState("checking");
     try {
-      const u = await checkUpdate();
-      if (u) setUpdate(u); else flash(t("upd.latest"));
-    } catch (e: any) { flash(e.message || "check failed", true); }
-    finally { setChecking(false); }
+      const u = await requestUpdate();
+      if (u) {
+        setUpdate(u);
+        setUpdateCheckState("available");
+      } else {
+        setUpdate(null);
+        setUpdateCheckState("latest");
+      }
+    } catch {
+      setUpdateCheckState("error");
+      flash(t("upd.failed"), true);
+    }
   };
   const doUpdate = async () => {
     if (!update) return;
@@ -294,12 +328,22 @@ export function App() {
 
         <div className="spacer" />
         {appVersion && (
-          <div className="ver-row">
-            <span className="ver">XmanBrowser v{appVersion}</span>
+          <div className="ver-block">
+            <div className="ver-row">
+              <span className="ver">XmanBrowser v{appVersion}</span>
+              {_inTauri && (
+                <button className="ver-check" onClick={manualCheck} disabled={checking}>
+                  {checking ? t("upd.checking") : t("upd.check")}
+                </button>
+              )}
+            </div>
             {_inTauri && (
-              <button className="ver-check" onClick={manualCheck} disabled={checking}>
-                {checking ? t("upd.checking") : t("upd.check")}
-              </button>
+              <div className={`ver-status ${updateCheckState}`} role="status" aria-live="polite">
+                {updateCheckState === "checking" ? t("upd.checking") :
+                  updateCheckState === "available" && update ? t("upd.found", update.version) :
+                    updateCheckState === "latest" ? t("upd.latest") :
+                      updateCheckState === "error" ? t("upd.failed") : ""}
+              </div>
             )}
           </div>
         )}
@@ -321,7 +365,7 @@ export function App() {
             {updPct == null ? (
               <>
                 <button className="primary sm" onClick={doUpdate}>{t("upd.now")}</button>
-                <button className="sm" onClick={() => setUpdate(null)}>{t("upd.later")}</button>
+                <button className="sm" onClick={() => { setUpdate(null); setUpdateCheckState("idle"); }}>{t("upd.later")}</button>
               </>
             ) : (
               <span className="upd-progress">{t("upd.updating", updPct)}</span>
