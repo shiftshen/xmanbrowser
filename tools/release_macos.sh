@@ -101,7 +101,12 @@ echo "── [8/8] auto-updater artifact (tar.gz of the NOTARIZED+STAPLED app + 
 UPD_KEY="${TAURI_UPDATER_KEY:-$HOME/.tauri/xmanbrowser-updater.key}"
 TARGZ="/tmp/XmanBrowser_${VERSION}_aarch64.app.tar.gz"
 rm -f "$TARGZ" "$TARGZ.sig"
-tar czf "$TARGZ" -C "$(dirname "$APP")" "XmanBrowser.app"
+# macOS bsdtar otherwise serializes extended attributes as AppleDouble entries
+# such as `._XmanBrowser.app`. Tauri strips the first path component while
+# extracting; that top-level metadata entry becomes an empty path and aborts
+# installation after the download completes.
+COPYFILE_DISABLE=1 tar czf "$TARGZ" -C "$(dirname "$APP")" "XmanBrowser.app"
+python3 tools/verify_updater_archive.py "$TARGZ" XmanBrowser.app
 # The build step exports the key contents for Tauri's updater bundle. The
 # standalone signer must receive exactly one key source, so clear those vars
 # before passing the private-key file explicitly.

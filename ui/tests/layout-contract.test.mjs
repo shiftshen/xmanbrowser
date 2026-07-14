@@ -6,6 +6,7 @@ const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const tauri = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"));
+const releaseMac = readFileSync(new URL("../../tools/release_macos.sh", import.meta.url), "utf8");
 
 function rule(selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -70,4 +71,16 @@ test("update checks use a bounded retry instead of failing silently", () => {
   assert.match(app, /checkUpdate\(\{ timeout: UPDATE_CHECK_TIMEOUT_MS/);
   assert.match(app, /if \(attempt < attempts\)/);
   assert.doesNotMatch(app, /catch\(\(\) => \{ \/\* offline \/ no update \*\/ \}\)/);
+});
+
+test("macOS updater archives exclude AppleDouble metadata that Tauri cannot unpack", () => {
+  assert.match(releaseMac, /COPYFILE_DISABLE=1\s+tar czf/);
+  assert.match(releaseMac, /verify_updater_archive\.py/);
+});
+
+test("install failures preserve string errors and remain visible for retry", () => {
+  assert.match(app, /function updateErrorMessage\(error: unknown\)/);
+  assert.match(app, /const message = updateErrorMessage\(error\)/);
+  assert.match(app, /setUpdateInstallError\(message\)/);
+  assert.match(app, /className="upd-error" role="alert"/);
 });
