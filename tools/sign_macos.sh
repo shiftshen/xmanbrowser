@@ -41,10 +41,11 @@ done > "$MACHO"
 echo "    $(wc -l < "$MACHO") Mach-O files"
 
 echo "[2/5] signing all embedded Mach-O…"
-# Low parallelism: every codesign --timestamp hits timestamp.apple.com, and -P6
-# hammers it into rate-limiting (signatures silently come back without a secure
-# timestamp). -P2 is gentle enough to stay reliable. deepest paths first.
-sort -r "$MACHO" | xargs -P2 -I{} codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$IDENTITY" {} >/dev/null 2>&1
+# Secure timestamps are serialized deliberately. Even -P2 can make Apple's
+# service reject every request during a throttled window, while the exact same
+# command succeeds sequentially. The release wrapper retries any remaining
+# unsigned files, so reliability matters more than shaving a few seconds here.
+sort -r "$MACHO" | xargs -P1 -I{} codesign --force --timestamp --options runtime --entitlements "$ENT" --sign "$IDENTITY" {} >/dev/null 2>&1
 
 echo "[3/5] signing the bundled Camoufox browser (nested .app/.framework, --deep)…"
 # --deep recursively signs every nested helper (.app), framework, dylib AND the
