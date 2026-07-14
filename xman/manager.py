@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import signal
 import subprocess
 import sys
@@ -16,6 +17,9 @@ from pathlib import Path
 from typing import Optional
 
 from .profile import data_dir
+
+HEARTBEAT_TIMEOUT = 5.0
+STARTUP_GRACE = 90.0
 
 
 def _runtime_file() -> Path:
@@ -35,6 +39,107 @@ def _load() -> dict[str, dict]:
 
 def _save(d: dict[str, dict]) -> None:
     _runtime_file().write_text(json.dumps(d, indent=2))
+
+
+def _heartbeat_file(profile_id: str) -> Path:
+    path = data_dir() / "heartbeats"
+    path.mkdir(parents=True, exist_ok=True)
+    return path / f"{profile_id}.json"
+
+
+def write_heartbeat(
+    profile_id: str,
+    *,
+    pid: Optional[int] = None,
+    at: Optional[float] = None,
+    token: str = "",
+    phase: str = "running",
+) -> None:
+    """Atomically record that a runner is still pumping browser events."""
+    runner_pid = pid if pid is not None else os.getpid()
+    heartbeat = _heartbeat_file(profile_id)
+    temporary = heartbeat.with_suffix(f".{runner_pid}.tmp")
+    temporary.write_text(json.dumps({
+        "pid": runner_pid,
+        "at": at if at is not None else time.time(),
+        "token": token,
+        "phase": phase,
+    }))
+    temporary.replace(heartbeat)
+
+
+def clear_heartbeat(profile_id: str, *, pid: Optional[int] = None) -> None:
+    """Remove a heartbeat, without deleting one written by a replacement runner."""
+    heartbeat = _heartbeat_file(profile_id)
+    if not heartbeat.exists():
+        return
+    if pid is not None:
+        try:
+            if int(json.loads(heartbeat.read_text())["pid"]) != pid:
+                return
+        except Exception:
+            pass
+    heartbeat.unlink(missing_ok=True)
+
+
+def _heartbeat_fresh(
+    profile_id: str,
+    pid: int,
+    *,
+    now: Optional[float] = None,
+    token: Optional[str] = None,
+    started_at: Optional[float] = None,
+) -> Optional[bool]:
+    """Return freshness for this PID, or None for a legacy/mismatched runner."""
+    heartbeat = _heartbeat_file(profile_id)
+    current_time = now if now is not None else time.time()
+    if not heartbeat.exists():
+        if token is None:
+            return None
+        return started_at is not None and current_time - started_at <= STARTUP_GRACE
+    try:
+        payload = json.loads(heartbeat.read_text())
+        if int(payload["pid"]) != pid:
+            return None if token is None else False
+        if token is not None and payload.get("token") != token:
+            return False
+        if token is not None and payload.get("phase") == "starting":
+            return started_at is not None and current_time - started_at <= STARTUP_GRACE
+        age = current_time - float(payload["at"])
+        return age <= HEARTBEAT_TIMEOUT
+    except Exception:
+        return False
+
+
+def _process_matches_runner(pid: int, token: str) -> Optional[bool]:
+    """Return True/False for match/mismatch, or None when probing failed."""
+    if not token:
+        return False
+    try:
+        if os.name == "nt":
+            completed = subprocess.run(
+                [
+                    "powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    f"(Get-CimInstance Win32_Process -Filter 'ProcessId = {int(pid)}').CommandLine",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+            )
+        else:
+            completed = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "command="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        if completed.returncode != 0 or not completed.stdout.strip():
+            return None
+        command = completed.stdout
+        return token in command and "runner" in command
+    except Exception:
+        return None
 
 
 def _alive(pid: int) -> bool:
@@ -59,7 +164,28 @@ def pid_exists_fallback(pid: int) -> bool:
 
 
 def _reap(d: dict[str, dict]) -> dict[str, dict]:
-    live = {pid: rec for pid, rec in d.items() if _alive(rec["pid"])}
+    live: dict[str, dict] = {}
+    for profile_id, rec in d.items():
+        pid = rec["pid"]
+        process_alive = _alive(pid)
+        token = rec.get("run_token")
+        heartbeat_fresh = _heartbeat_fresh(
+            profile_id,
+            pid,
+            token=token,
+            started_at=rec.get("started_at"),
+        )
+        if process_alive and heartbeat_fresh is not False:
+            live[profile_id] = rec
+            continue
+        if process_alive and heartbeat_fresh is False and token:
+            identity = _process_matches_runner(pid, token)
+            if identity is None:
+                live[profile_id] = rec
+                continue
+            if identity:
+                _terminate_process_tree(pid)
+        clear_heartbeat(profile_id, pid=pid)
     if len(live) != len(d):
         _save(live)
     return live
@@ -84,10 +210,12 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
     # In a PyInstaller-frozen sidecar there is no `python -m`; re-invoke the
     # frozen exe with the "runner" subcommand instead.
     frozen = getattr(sys, "frozen", False)
+    run_token = secrets.token_hex(16)
     if frozen:
         cmd = [sys.executable, "runner", profile_id, "--url", url]
     else:
         cmd = [sys.executable, "-m", "xman.runner", profile_id, "--url", url]
+    cmd.extend(["--run-token", run_token])
     if headless:
         cmd.append("--headless")
     # Capture the runner's output to a per-profile log so launch failures (e.g. a
@@ -116,21 +244,16 @@ def launch(profile_id: str, *, url: str = "about:blank", headless: bool = False)
         popen_kw["creationflags"] = flags
     else:
         popen_kw["start_new_session"] = True
+    clear_heartbeat(profile_id)
     proc = subprocess.Popen(cmd, **popen_kw)
     logf.close()  # the child keeps its own inherited handle
-    rec = {"pid": proc.pid, "started_at": time.time()}
+    rec = {"pid": proc.pid, "started_at": time.time(), "run_token": run_token}
     d[profile_id] = rec
     _save(d)
     return {"profile_id": profile_id, "pid": proc.pid, "already_running": False}
 
 
-def stop(profile_id: str) -> bool:
-    d = _reap(_load())
-    rec = d.pop(profile_id, None)
-    _save(d)
-    if not rec:
-        return False
-    pid = rec["pid"]
+def _terminate_process_tree(pid: int) -> bool:
     if os.name == "nt":
         # Force-kill the whole tree (runner + Camoufox children).
         try:
@@ -152,6 +275,30 @@ def stop(profile_id: str) -> bool:
         except Exception:
             return False
     return True
+
+
+def stop(profile_id: str) -> bool:
+    d = _reap(_load())
+    rec = d.get(profile_id)
+    if not rec:
+        return False
+    pid = rec["pid"]
+    token = rec.get("run_token")
+    if token:
+        identity = _process_matches_runner(pid, token)
+        if identity is None:
+            return False
+        if identity is False:
+            d.pop(profile_id, None)
+            _save(d)
+            clear_heartbeat(profile_id, pid=pid)
+            return False
+    stopped = _terminate_process_tree(pid)
+    if stopped:
+        d.pop(profile_id, None)
+        _save(d)
+        clear_heartbeat(profile_id, pid=pid)
+    return stopped
 
 
 def stop_all() -> int:

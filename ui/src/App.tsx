@@ -588,7 +588,7 @@ function ProfileCard(props: {
     <div className="card">
       <div className="head">
         <div className="avatar" style={{ background: avatarColor(p.name) }}>{initials(p.name)}</div>
-        <span className="title">{p.name}</span>
+        <span className="title" title={p.name}>{p.name}</span>
         <span className="chip" title={p.engine === "chromium" ? "Chromium (patchright)" : "Camoufox (Firefox)"}>{p.engine === "chromium" ? "Chrome" : "Firefox"}</span>
         <span className="grow" />
         {p.running && <span className="chip run">{t("card.running")}</span>}
@@ -608,7 +608,7 @@ function ProfileCard(props: {
             </span>
           ) : <b className="faint">{t("card.noProxy")}</b>}
         </div>
-        {p.note && <div className="note">“{p.note}”</div>}
+        {p.note && <div className="note" title={p.note}>“{p.note}”</div>}
       </div>
       <div className="row" style={{ display: "flex", gap: 6 }}>
         {p.group !== "default" && <span className="chip grp">{p.group}</span>}

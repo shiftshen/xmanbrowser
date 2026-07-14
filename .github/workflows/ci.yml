@@ -34,6 +34,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci || npm install
+      - run: npm test
       - run: npm run build
 
   tauri:
@@ -48,4 +49,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ui/src-tauri
+      - name: Create resource placeholder for cargo-only validation
+        run: |
+          mkdir -p sidecar
+          touch sidecar/ci-placeholder.txt
       - run: cargo check
