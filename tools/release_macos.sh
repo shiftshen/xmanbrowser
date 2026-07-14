@@ -28,12 +28,17 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 
 echo "▶ releasing XmanBrowser $VERSION (arm64)"
 
-echo "── [1/7] sidecar (+ bundled Camoufox browser)"
-bash tools/build_sidecar.sh
+if [ "${RELEASE_RESUME:-0}" = "1" ]; then
+  [ -d "$APP" ] || { echo "✗ RELEASE_RESUME=1 but built app is missing: $APP"; exit 1; }
+  echo "── [1+2/7] resume from existing built app"
+else
+  echo "── [1/7] sidecar (+ bundled Camoufox browser)"
+  bash tools/build_sidecar.sh
 
-echo "── [2/7] tauri build"
-pkill -f "XmanBrowser.app/Contents/MacOS/app" 2>/dev/null || true
-( cd ui && npx tauri build )
+  echo "── [2/7] tauri build"
+  pkill -f "XmanBrowser.app/Contents/MacOS/app" 2>/dev/null || true
+  ( cd ui && npx tauri build )
+fi
 
 scan_unsigned() {
   find "$APP" -type f | while IFS= read -r f; do
@@ -50,8 +55,11 @@ for attempt in 1 2 3 4 5 6; do
   bash tools/sign_macos.sh "$IDENTITY" "$APP" >/dev/null 2>&1 || true
   UNSIGNED="$(scan_unsigned)"
   [ -z "$UNSIGNED" ] && { echo "  ✓ all Mach-O signed (attempt $attempt)"; break; }
-  echo "  attempt $attempt: $(echo "$UNSIGNED" | grep -c . ) still unsigned (timestamp.apple.com rate-limit) — waiting then retrying"
-  sleep 20
+  echo "  attempt $attempt: $(echo "$UNSIGNED" | grep -c . ) still unsigned (timestamp.apple.com rate-limit)"
+  if [ "$attempt" -lt 6 ]; then
+    echo "  waiting then retrying"
+    sleep 20
+  fi
 done
 if [ -n "$UNSIGNED" ]; then
   echo "✗ ABORT — still unsigned after retries (notarization would fail):"
