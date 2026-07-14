@@ -44,7 +44,10 @@ scan_unsigned() {
   find "$APP" -type f | while IFS= read -r f; do
     case "$f" in *.py|*.pyc|*.txt|*.json|*.yml|*.yaml|*.dat|*.pem|*.html|*.css|*.js|*.svg|*.png|*.ico|*.icns) continue;; esac
     if file "$f" 2>/dev/null | grep -q "Mach-O"; then
-      codesign -dvv "$f" 2>&1 | grep -q "Authority=Developer ID Application" || echo "$f"
+      # Do not use grep -q here: with the script's pipefail, grep exiting after
+      # the first match gives verbose codesign a SIGPIPE and falsely marks every
+      # correctly signed file as unsigned.
+      codesign -dvv "$f" 2>&1 | grep "Authority=Developer ID Application" >/dev/null || echo "$f"
     fi
   done
 }
